@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as o}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function m(){return e.jsx(o,{area:"compute",title:"Compute",description:"This machine, rented GPUs and your own servers.",command:"decider-lab compute ls --on vast"})}export{m as default};

@@ -1,0 +1,1 @@
+import{h as r,j as t}from"./react-eyfZxl2k.js";import{P as e}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function n(){const{rootId:o=""}=r();return t.jsx(e,{area:"runroot",title:"Run root",description:`Run root ${o}`,breadcrumbs:[{label:"Results",to:"/results"},{label:"Run root"}]})}export{n as default};

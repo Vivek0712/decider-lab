@@ -1,0 +1,1 @@
+import{h as e,j as r}from"./react-eyfZxl2k.js";import{P as s}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function l(){const{jobId:o=""}=e();return r.jsx(s,{area:"job",title:`Job ${o}`,description:"Stages, progress, logs and telemetry.",breadcrumbs:[{label:"Jobs",to:"/jobs"},{label:o}]})}export{l as default};

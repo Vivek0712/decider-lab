@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as r}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function m(){return e.jsx(r,{area:"compare",title:"Compare two runs",description:"Paired difference with a 95% CI.",command:"decider-lab compare RUN_A RUN_B",breadcrumbs:[{label:"Results",to:"/results"},{label:"Compare"}]})}export{m as default};

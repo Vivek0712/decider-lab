@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as a}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function o(){return e.jsx(a,{area:"lab-new",title:"New lab",description:"Start from the eval or finetune template.",command:"decider-lab init my-lab --template eval",breadcrumbs:[{label:"Labs",to:"/labs"},{label:"New lab"}]})}export{o as default};

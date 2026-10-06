@@ -12,6 +12,7 @@
     decider-lab data ...                                from-csv, generate, check, split, leakcheck, stats
     decider-lab suites                                  the built-in suites
     decider-lab jevbench --url URL --out DIR            JevBench public tasks, v1.5-rule proxy
+    decider-lab ui [--workspace DIR]                    Studio: the local web portal ([ui] extra)
 """
 
 from __future__ import annotations
@@ -283,6 +284,18 @@ def cmd_compute(a: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_ui(a: argparse.Namespace) -> int:
+    try:
+        import fastapi  # noqa: F401
+        import uvicorn  # noqa: F401
+    except ImportError:
+        print("decider-lab ui needs the ui extra: pip install 'decider-lab[ui]'", file=sys.stderr)
+        return 2
+    from .ui.server import cmd_ui as run_ui
+
+    return run_ui(a)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="decider-lab", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -416,6 +429,14 @@ def build_parser() -> argparse.ArgumentParser:
             c.add_argument("ids", nargs="*")
             c.add_argument("--all", action="store_true", help="every machine decider-lab started")
     s.set_defaults(fn=cmd_compute)
+
+    s = sub.add_parser("ui", help="Studio: the local web portal (needs the [ui] extra)")
+    s.add_argument("--workspace", default=".", help="directory with your labs and runs (default: here)")
+    s.add_argument("--host", default="127.0.0.1", help="bind address (loopback; any other needs --token)")
+    s.add_argument("--port", type=int, default=7861, help="port (default 7861; 0 picks a free one)")
+    s.add_argument("--token", help="access token (default: $DECIDER_LAB_UI_TOKEN, else a new random one)")
+    s.add_argument("--no-browser", action="store_true", help="do not open a browser")
+    s.set_defaults(fn=cmd_ui)
     return p
 
 

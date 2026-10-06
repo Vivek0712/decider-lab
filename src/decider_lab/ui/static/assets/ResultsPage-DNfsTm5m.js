@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as r}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function o(){return e.jsx(r,{area:"results",title:"Results",description:"Leaderboards with 95% CIs, comparisons against the baseline, and every row.",command:"decider-lab report runs/first-lab"})}export{o as default};

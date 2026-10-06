@@ -240,6 +240,7 @@ pip install "decider-lab[strands,heldout,aws,vast] @ git+https://github.com/Vive
 | `hub` | `hf://` model sources (included in `strands` and `heldout`) |
 | `bedrock` / `strands-agents` | Amazon Bedrock models / Strands Agents models as answerers |
 | `aws` / `vast` | the `--on aws` / `--on vast` backends, and `s3://` model sources (`aws`) |
+| `ui` | Studio, the local web portal: `decider-lab ui` (binds 127.0.0.1, prints a tokenized link) |
 
 Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that has it ([strands-decider#29](https://github.com/strands-labs/strands-decider/pull/29)); otherwise decider-lab falls back to `init_from` and tells you.
 
@@ -254,6 +255,7 @@ Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that ha
 | [Fine-tuning](docs/finetune.md) | data, leak checks, the recipe, continue vs init |
 | [Compute](docs/compute.md) | local, ssh, AWS and vast.ai; the traps the bootstrap handles |
 | [Extending](docs/extending.md) | your own adapter or suite; publishing an evaluation |
+| [Studio](docs/ui/DESIGN.md) | the local web portal (`decider-lab ui`): design, [API](docs/ui/API.md), [frontend](ui/README.md) |
 
 ## 🤝 Relationship to Strands Decider
 

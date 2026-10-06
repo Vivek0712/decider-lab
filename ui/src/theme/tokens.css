@@ -1,0 +1,128 @@
+/* decider-lab Studio design tokens (DESIGN.md section 5). Components use these semantic tokens
+   only, through Tailwind (tailwind.config.ts) or var(--name). Theme: data-theme on <html>. */
+
+:root {
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 280ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --topbar-h: 56px;
+  --sidebar-w: 232px;
+  --sidebar-rail-w: 64px;
+  --control-h: 36px;
+  --row-h: 44px;
+}
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #06140e;
+  --surface-1: #0b1f16;
+  --surface-2: #10291d;
+  --surface-3: #163424;
+  --border: #1f4030;
+  --border-strong: #3e6e55;
+  --text: #e8f2ec;
+  --text-muted: #a3bfb0;
+  --text-subtle: #7f9c8c;
+  --accent: #2fdc85;
+  --accent-hover: #5be79f;
+  --accent-bright: #2fdc85;
+  --on-accent: #06140e;
+  --brand: #0b7a45;
+  --on-brand: #ffffff;
+  --success: #2fdc85;
+  --warning: #f5c451;
+  --danger: #ff7a7a;
+  --info: #7cc4ff;
+  --danger-fill: #5a1e1e;
+  --on-danger-fill: #e8f2ec;
+  --tint-accent: rgba(47, 220, 133, 0.12);
+  --tint-warning: rgba(245, 196, 81, 0.12);
+  --tint-danger: rgba(255, 122, 122, 0.12);
+  --tint-info: rgba(124, 196, 255, 0.12);
+  --focus: #2fdc85;
+  --scrim: rgba(2, 8, 5, 0.72);
+
+  --elev-1: 0 1px 0 rgba(0, 0, 0, 0.25);
+  --elev-2: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --elev-3: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+  --chart-1: #2fdc85;
+  --chart-2: #7cc4ff;
+  --chart-3: #f5c451;
+  --chart-4: #c9a0ff;
+  --chart-5: #ff9f7a;
+  --chart-6: #5fe0d6;
+  --chart-baseline: #8fa39a;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f8f4;
+  --surface-1: #ffffff;
+  --surface-2: #ecf2ec;
+  --surface-3: #e1ebe3;
+  --border: #d3dfd6;
+  --border-strong: #7a9585;
+  --text: #06140e;
+  --text-muted: #3d5747;
+  --text-subtle: #56705f;
+  --accent: #0b7a45;
+  --accent-hover: #096239;
+  --accent-bright: #2fdc85;
+  --on-accent: #ffffff;
+  --brand: #0b7a45;
+  --on-brand: #ffffff;
+  --success: #0b7a45;
+  --warning: #8a5a00;
+  --danger: #b42318;
+  --info: #1f5fad;
+  --danger-fill: #b42318;
+  --on-danger-fill: #ffffff;
+  --tint-accent: rgba(11, 122, 69, 0.1);
+  --tint-warning: rgba(138, 90, 0, 0.1);
+  --tint-danger: rgba(180, 35, 24, 0.08);
+  --tint-info: rgba(31, 95, 173, 0.08);
+  --focus: #0b7a45;
+  --scrim: rgba(6, 20, 14, 0.4);
+
+  --elev-1: 0 1px 2px rgba(6, 20, 14, 0.06);
+  --elev-2: 0 4px 16px rgba(6, 20, 14, 0.1);
+  --elev-3: 0 12px 40px rgba(6, 20, 14, 0.16);
+
+  --chart-1: #0b7a45;
+  --chart-2: #1f5fad;
+  --chart-3: #8a5a00;
+  --chart-4: #6b3fb8;
+  --chart-5: #b4461f;
+  --chart-6: #0f7a75;
+  --chart-baseline: #5f7a6b;
+}
+
+[data-density="compact"] {
+  --control-h: 32px;
+  --row-h: 36px;
+}

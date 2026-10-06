@@ -1,0 +1,19 @@
+{
+  "user": {"credit_usd": 25.4, "as_of": "2026-10-06T10:41:00.000Z"},
+  "gpu_names": ["RTX_4090", "RTX_A6000", "L40S", "A100_SXM4", "A100_PCIE", "H100_SXM", "H100_PCIE"],
+  "offers": [
+    {"id": 1234501, "gpu_name": "RTX_4090", "num_gpus": 1, "dph_total": 0.342, "gpu_ram_gb": 24, "cuda_max_good": 12.8, "reliability": 0.995, "geolocation": "CA", "inet_down_mbps": 812, "disk_space_gb": 120},
+    {"id": 1234502, "gpu_name": "RTX_4090", "num_gpus": 1, "dph_total": 0.389, "gpu_ram_gb": 24, "cuda_max_good": 12.4, "reliability": 0.991, "geolocation": "DE", "inet_down_mbps": 940, "disk_space_gb": 200},
+    {"id": 1234503, "gpu_name": "RTX_4090", "num_gpus": 2, "dph_total": 0.701, "gpu_ram_gb": 24, "cuda_max_good": 12.8, "reliability": 0.987, "geolocation": "US", "inet_down_mbps": 1500, "disk_space_gb": 400},
+    {"id": 1234511, "gpu_name": "RTX_A6000", "num_gpus": 1, "dph_total": 0.452, "gpu_ram_gb": 48, "cuda_max_good": 12.2, "reliability": 0.993, "geolocation": "US", "inet_down_mbps": 620, "disk_space_gb": 150},
+    {"id": 1234521, "gpu_name": "L40S", "num_gpus": 1, "dph_total": 0.598, "gpu_ram_gb": 48, "cuda_max_good": 12.8, "reliability": 0.996, "geolocation": "SE", "inet_down_mbps": 2100, "disk_space_gb": 250},
+    {"id": 1234567, "gpu_name": "A100_SXM4", "num_gpus": 1, "dph_total": 0.612, "gpu_ram_gb": 80, "cuda_max_good": 12.4, "reliability": 0.998, "geolocation": "CA", "inet_down_mbps": 1800, "disk_space_gb": 300},
+    {"id": 1234568, "gpu_name": "A100_SXM4", "num_gpus": 1, "dph_total": 0.745, "gpu_ram_gb": 80, "cuda_max_good": 12.6, "reliability": 0.999, "geolocation": "US", "inet_down_mbps": 3200, "disk_space_gb": 500},
+    {"id": 1234571, "gpu_name": "A100_PCIE", "num_gpus": 1, "dph_total": 0.689, "gpu_ram_gb": 40, "cuda_max_good": 12.2, "reliability": 0.989, "geolocation": "NL", "inet_down_mbps": 1100, "disk_space_gb": 200},
+    {"id": 1234581, "gpu_name": "H100_SXM", "num_gpus": 1, "dph_total": 1.89, "gpu_ram_gb": 80, "cuda_max_good": 12.8, "reliability": 0.997, "geolocation": "US", "inet_down_mbps": 5000, "disk_space_gb": 600},
+    {"id": 1234591, "gpu_name": "H100_PCIE", "num_gpus": 1, "dph_total": 1.65, "gpu_ram_gb": 80, "cuda_max_good": 12.6, "reliability": 0.992, "geolocation": "FI", "inet_down_mbps": 2600, "disk_space_gb": 400}
+  ],
+  "instances": [
+    {"id": 9876543, "label": "decider-lab:first-lab", "status": "running", "gpu": "1x A100_SXM4", "dph_total": 0.612, "started_at": "2026-10-06T10:42:30.000Z", "ssh": "root@ssh4.vast.ai:22311"}
+  ]
+}

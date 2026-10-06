@@ -14,8 +14,12 @@ from . import __version__
 from .suites import CACHE
 
 
-def checks() -> list[tuple[str, str, str]]:
-    """(status, item, detail) rows; status is ok, warn or info."""
+def checks(*, cloud: bool = True) -> list[tuple[str, str, str]]:
+    """(status, item, detail) rows; status is ok, warn or info.
+
+    `cloud=False` skips the vast.ai and AWS rows (they call the vastai CLI and AWS STS); Studio uses
+    it in fake-cloud mode and adds fixture rows instead.
+    """
     out: list[tuple[str, str, str]] = [("ok", "decider-lab", f"{__version__} on Python {platform.python_version()}")]
     if importlib.util.find_spec("torch"):
         import torch
@@ -55,7 +59,9 @@ def checks() -> list[tuple[str, str, str]]:
                     "installed" if importlib.util.find_spec(mod) else f"not installed ({what}: [{extra}] extra)"))
     out.append(("ok" if os.path.isdir(os.path.join(CACHE, "jevbench", ".git")) else "info", "jevbench harness",
                 "cached" if os.path.isdir(os.path.join(CACHE, "jevbench", ".git")) else "fetched on first use"))
-    if shutil.which("vastai"):
+    if not cloud:
+        pass
+    elif shutil.which("vastai"):
         try:
             from .compute.vast import credit
 
@@ -64,7 +70,9 @@ def checks() -> list[tuple[str, str, str]]:
             out.append(("warn", "vast.ai", f"CLI present, but: {e}"[:200]))
     else:
         out.append(("info", "vast.ai", "CLI not installed (only for `--on vast`): [vast] extra"))
-    if importlib.util.find_spec("boto3"):
+    if not cloud:
+        pass
+    elif importlib.util.find_spec("boto3"):
         try:
             import boto3
 

@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as o}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function r(){return e.jsx(o,{area:"models",title:"Models",description:"Checkpoints pulled into the decider-lab cache, and pulling new ones.",command:"decider-lab models"})}export{r as default};

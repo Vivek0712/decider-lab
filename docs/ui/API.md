@@ -27,14 +27,15 @@ Contents
 ### 1.1 Starting
 
 ```
-decider-lab ui [--workspace DIR] [--port 8765] [--host 127.0.0.1] [--no-browser] [--token TOKEN]
+decider-lab ui [--workspace DIR] [--port 7861] [--host 127.0.0.1] [--no-browser] [--token TOKEN]
 ```
 
-- `--host` accepts only loopback (`127.0.0.1`, `::1`, `localhost`); anything else exits 2 with
-  "Studio binds to loopback only". Port 0 picks a free port. If the port is taken, exit 2 with
+- `--host` accepts loopback (`127.0.0.1`, `::1`, `localhost`); anything else exits 2 with
+  "Studio binds to loopback only" unless `--token` is passed explicitly (an env token is not
+  enough), in which case that host is also accepted by the Host check. Port 0 picks a free port. If the port is taken, exit 2 with
   the message (no silent fallback).
 - Token: `--token`, else env `DECIDER_LAB_UI_TOKEN`, else `secrets.token_urlsafe(32)`. Printed
-  once to stdout as `http://127.0.0.1:8765/?token=<token>` and opened in the browser unless
+  once to stdout as `http://127.0.0.1:7861/?token=<token>` and opened in the browser unless
   `--no-browser`. The token is never written to disk or logged elsewhere.
 - Needs the extra: `pip install 'decider-lab[ui]'` (fastapi, uvicorn, python-multipart, sse-starlette
   optional). Without it, `decider-lab ui` exits 2 naming the extra.
@@ -54,10 +55,11 @@ decider-lab ui [--workspace DIR] [--port 8765] [--host 127.0.0.1] [--no-browser]
   `dl_session=<session>` (`HttpOnly; SameSite=Strict; Path=/`; no `Secure` since it is http on
   loopback) and redirects 302 to `/` without the query. Session = HMAC of the token, so restarting
   with the same token keeps sessions valid; a new token invalidates them.
-- Every `/api/*` route except `GET /api/health` requires either the cookie or
-  `Authorization: Bearer <token>` (for scripts and tests). Missing/invalid → `401
-  {"error":{"code":"unauthorized",…}}`.
-- SSE (`EventSource`) uses the cookie (same-origin).
+- Every `/api/*` route except `GET /api/health` (and its alias `/api/system/health`) requires one
+  of: the cookie, `Authorization: Bearer <token>`, `X-Decider-Lab-Token: <token>` (scripts, tests,
+  and the Vite dev server), or, for GET only, `?token=<token>` (EventSource cannot set headers).
+  Missing/invalid → `401 {"error":{"code":"unauthorized",…}}`.
+- SSE (`EventSource`) uses the cookie (same-origin); in `npm run dev` the client adds `?token=`.
 - Static assets (`/assets/*`, `/index.html`) are served without auth (they contain no data).
 - Security headers on every response: `Content-Security-Policy: default-src 'self'; img-src 'self'
   data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'`,
@@ -78,6 +80,32 @@ decider-lab ui [--workspace DIR] [--port 8765] [--host 127.0.0.1] [--no-browser]
 - Caching: `GET` responses have `Cache-Control: no-store` except `/assets/*` (immutable, hashed).
 - Server-sent events: `text/event-stream`, a `: ping` comment every 15 s, `id:` on every
   data event; clients reconnect with `Last-Event-ID`.
+
+### 1.4 Foundation notes (what `src/decider_lab/ui/` provides today)
+
+- Modules: `server.py` (`create_app(workspace, token, *, port=None, static_dir=None, fake_cloud=None,
+  …)`), `auth.py` (middleware: Host check, auth, X-Studio/Origin, security headers, request id),
+  `errors.py` (`ApiError` → the 2.2 envelope), `redact.py` (`Redactor`), `workspace.py` (scan, ids,
+  `resolve()`), `jobs.py` (`JobManager`, SSE helpers), `jobrunner.py` (per-job supervisor),
+  `cloud_fake.py` + `fakes/{vast,aws}.json`, `state.py` (`StudioState`, `get_state`,
+  `SettingsStore`), and one router per area: `api_{overview,labs,jobs,results,models,data,compute,system}.py`,
+  each `APIRouter(prefix="/api")`. Shared state in a route: `st: StudioState = Depends(get_state)`.
+- Implemented endpoints: `GET /api/health`, `/api/system/health`, `/api/meta` (alias
+  `/api/system/meta`), `/api/system/doctor` (the doctor response of section 10; the Compute area
+  serves `/api/compute/doctor` by calling `api_system.doctor_report(st)`), `/api/about`,
+  `GET/PUT /api/settings`, `GET /api/settings/env`. Everything else is owned by the area routers.
+- Jobs: `JobManager.start(kind, argv, title=, cwd=, env=, env_names=, backend=, lab_id=, root_id=,
+  options=)` with `JobManager.cli_argv("run", …)` for the CLI. The command runs under a detached
+  supervisor (`python -m decider_lab.ui.jobrunner <job_dir>`) that redacts every line into
+  `log.txt` (`<ISO ts>\t<text>` per line), so a restarted server reattaches by pid; a running job
+  whose supervisor is gone becomes `lost`. Cancel sends SIGINT to the command's process group, then
+  SIGTERM after 30 s, then SIGKILL at 60 s (decider-lab releases remote machines on SIGINT and
+  SIGTERM). Parsers plug in with `add_line_handler(fn(job, line) -> updates)` and
+  `add_finish_handler(fn(job) -> updates)`. `job_event_stream(jm, job_id, last_event_id=,
+  from_start=)` and `bus_event_stream(st.bus)` produce the SSE of section 6; wrap with
+  `sse_response(...)`. The SPA sends the resume point as `?last_event_id=<seq>` (and the browser
+  sends `Last-Event-ID` on automatic reconnects); routes should accept either.
+- Fake cloud: `st.cloud` is a `FakeCloud` when `DECIDER_LAB_FAKE_CLOUD=1`, else `None`.
 
 ---
 

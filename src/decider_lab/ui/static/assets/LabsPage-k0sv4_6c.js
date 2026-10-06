@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as a}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function t(){return e.jsx(a,{area:"labs",title:"Labs",description:"Lab files: which models answer which suites, the baseline, and where they run.",command:"decider-lab init my-lab"})}export{t as default};

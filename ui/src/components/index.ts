@@ -1,0 +1,25 @@
+// Shared components (DESIGN.md section 6). Import from "@/components".
+export { Badge, type Tone } from "./Badge";
+export { Button, IconButton, type ButtonProps, type ButtonVariant } from "./Button";
+export { Callout } from "./Callout";
+export { Card, CardBody, CardHeader } from "./Card";
+export { CodeBlock, CodeInline, CopyButton, useCopy } from "./Code";
+export { CodeEditor, YamlEditor, type CodeEditorProps } from "./CodeEditor";
+export { ConfirmDialog, TypedConfirm } from "./Confirm";
+export { EmptyState } from "./EmptyState";
+export { ErrorState } from "./ErrorState";
+export { Checkbox, Input, SegmentedControl, Select, type Option } from "./Field";
+export { Kbd } from "./Kbd";
+export { LiveRegionProvider, useAnnounce } from "./LiveRegion";
+export { JobLogViewer, LogViewer, levelOf } from "./LogViewer";
+export { Dialog, Drawer, useModal } from "./Overlay";
+export { PageHeader } from "./PageHeader";
+export { ProgressBar } from "./ProgressBar";
+export { Skeleton } from "./Skeleton";
+export { StageTimeline } from "./StageTimeline";
+export { KpiCard, Stat } from "./Stat";
+export { JobStatusBadge, StatusPill } from "./StatusPill";
+export { DataTable, Table, type Column, type Sort } from "./Table";
+export { TabPanel, Tabs, useTabParam, type TabDef } from "./Tabs";
+export { ToastProvider, useToast, type ToastInput } from "./Toast";
+export { Tooltip } from "./Tooltip";

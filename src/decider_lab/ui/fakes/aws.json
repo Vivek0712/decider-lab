@@ -1,0 +1,19 @@
+{
+  "profiles": ["default", "heisenberg"],
+  "identity": {"account": "123456789012", "arn": "arn:aws:sts::123456789012:assumed-role/Admin/decider-lab-fixture"},
+  "quotas": [
+    {"family": "g", "code": "L-DB2E81BA", "name": "Running On-Demand G and VT instances", "limit_vcpus": 8, "used_vcpus": 4},
+    {"family": "p", "code": "L-417A185B", "name": "Running On-Demand P instances", "limit_vcpus": 0, "used_vcpus": 0},
+    {"family": "standard", "code": "L-1216C47A", "name": "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances", "limit_vcpus": 64, "used_vcpus": 2}
+  ],
+  "instances": [
+    {"id": "i-0abc123def4567890", "type": "g6e.xlarge", "state": "running", "lab": "first-lab", "launched_at": "2026-10-06T10:30:00.000Z", "usd_per_hour": 1.861, "public_ip_masked": "3.91.x.x"}
+  ],
+  "bedrock_models": [
+    {"model_id": "amazon.nova-pro-v1:0", "invoke_id": "us.amazon.nova-pro-v1:0", "name": "Nova Pro", "provider": "Amazon", "input_modalities": ["TEXT", "IMAGE", "VIDEO"], "output_modalities": ["TEXT"], "status": "ACTIVE"},
+    {"model_id": "amazon.nova-lite-v1:0", "invoke_id": "us.amazon.nova-lite-v1:0", "name": "Nova Lite", "provider": "Amazon", "input_modalities": ["TEXT", "IMAGE", "VIDEO"], "output_modalities": ["TEXT"], "status": "ACTIVE"},
+    {"model_id": "amazon.nova-micro-v1:0", "invoke_id": "us.amazon.nova-micro-v1:0", "name": "Nova Micro", "provider": "Amazon", "input_modalities": ["TEXT"], "output_modalities": ["TEXT"], "status": "ACTIVE"},
+    {"model_id": "meta.llama3-3-70b-instruct-v1:0", "invoke_id": "us.meta.llama3-3-70b-instruct-v1:0", "name": "Llama 3.3 70B Instruct", "provider": "Meta", "input_modalities": ["TEXT"], "output_modalities": ["TEXT"], "status": "ACTIVE"},
+    {"model_id": "mistral.pixtral-large-2502-v1:0", "invoke_id": "us.mistral.pixtral-large-2502-v1:0", "name": "Pixtral Large (25.02)", "provider": "Mistral AI", "input_modalities": ["TEXT", "IMAGE"], "output_modalities": ["TEXT"], "status": "ACTIVE"}
+  ]
+}

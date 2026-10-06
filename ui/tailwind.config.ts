@@ -1,0 +1,72 @@
+import type { Config } from "tailwindcss";
+
+// Colors, radii, shadows and type map to the CSS custom properties in src/theme/tokens.css
+// (DESIGN.md section 5). Use these semantic names; never raw hex in components.
+const v = (name: string) => `var(--${name})`;
+
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: ["class", '[data-theme="dark"]'],
+  theme: {
+    screens: { sm: "640px", md: "1024px", lg: "1280px", xl: "1600px" },
+    extend: {
+      colors: {
+        bg: v("bg"),
+        "surface-1": v("surface-1"),
+        "surface-2": v("surface-2"),
+        "surface-3": v("surface-3"),
+        border: v("border"),
+        "border-strong": v("border-strong"),
+        text: v("text"),
+        muted: v("text-muted"),
+        subtle: v("text-subtle"),
+        accent: v("accent"),
+        "accent-hover": v("accent-hover"),
+        "on-accent": v("on-accent"),
+        brand: v("brand"),
+        "on-brand": v("on-brand"),
+        success: v("success"),
+        warning: v("warning"),
+        danger: v("danger"),
+        info: v("info"),
+        "danger-fill": v("danger-fill"),
+        "on-danger-fill": v("on-danger-fill"),
+        "tint-accent": v("tint-accent"),
+        "tint-warning": v("tint-warning"),
+        "tint-danger": v("tint-danger"),
+        "tint-info": v("tint-info"),
+        focus: v("focus"),
+        "chart-1": v("chart-1"),
+        "chart-2": v("chart-2"),
+        "chart-3": v("chart-3"),
+        "chart-4": v("chart-4"),
+        "chart-5": v("chart-5"),
+        "chart-6": v("chart-6"),
+        "chart-baseline": v("chart-baseline"),
+      },
+      borderRadius: {
+        xs: v("radius-xs"),
+        sm: v("radius-sm"),
+        md: v("radius-md"),
+        lg: v("radius-lg"),
+      },
+      boxShadow: { "elev-1": v("elev-1"), "elev-2": v("elev-2"), "elev-3": v("elev-3") },
+      fontFamily: { sans: v("font-sans"), mono: v("font-mono") },
+      fontSize: {
+        display: ["32px", { lineHeight: "40px", fontWeight: "650" }],
+        h1: ["24px", { lineHeight: "32px", fontWeight: "650" }],
+        h2: ["18px", { lineHeight: "26px", fontWeight: "600" }],
+        h3: ["15px", { lineHeight: "22px", fontWeight: "600" }],
+        body: ["14px", { lineHeight: "22px" }],
+        small: ["13px", { lineHeight: "20px" }],
+        caption: ["12px", { lineHeight: "16px", letterSpacing: ".01em", fontWeight: "500" }],
+        mono: ["13px", { lineHeight: "20px" }],
+      },
+      maxWidth: { content: "1440px" },
+      zIndex: { sidebar: "10", topbar: "20", actionbar: "30", popover: "40", drawer: "50", dialog: "60", palette: "70", toast: "80" },
+      transitionDuration: { fast: "120ms", DEFAULT: "180ms", slow: "280ms" },
+      transitionTimingFunction: { DEFAULT: "cubic-bezier(.2,.8,.2,1)" },
+    },
+  },
+  plugins: [],
+} satisfies Config;

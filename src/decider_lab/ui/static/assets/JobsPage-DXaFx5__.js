@@ -1,0 +1,1 @@
+import{j as e}from"./react-eyfZxl2k.js";import{P as o}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function a(){return e.jsx(o,{area:"jobs",title:"Jobs",description:"Runs, pulls and evals you start appear here with live logs."})}export{a as default};

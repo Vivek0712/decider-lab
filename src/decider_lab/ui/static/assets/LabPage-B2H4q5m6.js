@@ -1,0 +1,1 @@
+import{h as r,j as e}from"./react-eyfZxl2k.js";import{P as b}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function o(){const{labId:a=""}=r();return e.jsx(b,{area:"lab",title:"Lab",description:`Lab ${a}`,command:"decider-lab run lab.yaml",breadcrumbs:[{label:"Labs",to:"/labs"},{label:"Lab"}]})}export{o as default};
