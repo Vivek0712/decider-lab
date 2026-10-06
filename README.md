@@ -32,9 +32,9 @@ It speaks Strands Decider natively, and it is open to **any decision model**: a 
 
 ```bash
 pip install "decider-lab @ git+https://github.com/Vivek0712/decider-lab"
-decider-lab init my-lab && cd my-lab      # a ready-to-run lab: lab.yaml, an example model, a README
-decider-lab run lab.yaml                  # -> runs/first-lab/REPORT.md
-decider-lab doctor                        # what this machine can do, and what to install for the rest
+decider-lab init my-lab && cd my-lab   # lab.yaml, an example model, a README
+decider-lab run lab.yaml               # -> runs/first-lab/REPORT.md
+decider-lab doctor                     # what this machine can do
 ```
 
 The first run needs no GPU, no API key and no downloads: it evaluates two baselines and an example Python model on generated questions. Strands Decider is one line in `lab.yaml` away.
@@ -77,10 +77,10 @@ jevbench: [v19]                    # JevBench's 231 public tasks, v1.5 rules
 <img src="docs/img/compute.svg" alt="Four backends (local, ssh, aws, vast) share one flow: check, acquire, copy, bootstrap, run and stream, fetch, release" width="100%">
 
 ```bash
-decider-lab run lab.yaml                                              # here
-decider-lab run lab.yaml --on ssh  --host ubuntu@my-gpu-box           # a machine you have
-decider-lab run lab.yaml --on aws  --instance-type g6e.xlarge         # EC2, launched and terminated for you
-decider-lab run lab.yaml --on vast --gpu A100_SXM4 --max-price 0.8    # a rented GPU
+decider-lab run lab.yaml                                        # here
+decider-lab run lab.yaml --on ssh  --host ubuntu@my-gpu-box     # your machine
+decider-lab run lab.yaml --on aws  --instance-type g6e.xlarge   # EC2 for the run
+decider-lab run lab.yaml --on vast --gpu A100_SXM4              # a rented GPU
 ```
 
 Every remote run checks first (credit, AWS vCPU quota with the exact quota code to request, ssh reachability), installs torch built for that machine's NVIDIA driver (or CPU), streams the log back, copies `runs/` home, and **releases the machine on success, failure, deadline or Ctrl-C**. AWS instances also self-terminate at the deadline, so a dead laptop never leaves one running. → [docs/compute.md](docs/compute.md)
@@ -91,9 +91,9 @@ Every remote run checks first (credit, AWS vCPU quota with the exact quota code 
 
 ```bash
 decider-lab init ft --template finetune && cd ft
-decider-lab data from-csv my_decisions.csv --out data/train.jsonl        # or: data generate ...
-decider-lab data leakcheck data/train.jsonl --against synthetic heldout  # exits 1 if any input leaks
-decider-lab run lab.yaml --on aws --instance-type g6e.xlarge             # train, calibrate, serve, compare
+decider-lab data from-csv my_decisions.csv --out data/train.jsonl
+decider-lab data leakcheck data/train.jsonl --against synthetic heldout   # exit 1 on a leak
+decider-lab run lab.yaml --on aws --instance-type g6e.xlarge              # train ... compare
 ```
 
 ```yaml
@@ -209,8 +209,10 @@ The fine-tune trained on the same generated families it was scored on (other row
 ## 🧩 Install
 
 ```bash
-pip install "decider-lab @ git+https://github.com/Vivek0712/decider-lab"                                # core: PyYAML only
-pip install "decider-lab[strands,heldout,aws,vast] @ git+https://github.com/Vivek0712/decider-lab"     # everything
+# core (PyYAML only)
+pip install "decider-lab @ git+https://github.com/Vivek0712/decider-lab"
+# everything
+pip install "decider-lab[strands,heldout,aws,vast] @ git+https://github.com/Vivek0712/decider-lab"
 ```
 
 | extra | adds |
