@@ -1,0 +1,1 @@
+import{c as e}from"./index-Cdy1PHrg.js";const o={name:"chevron-down",size:24,node:[["path",{d:"m6 9 6 6 6-6",key:"qrunsl"}]]};o.node;const t=e(o);const n={name:"rotate-ccw",size:24,node:[["path",{d:"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",key:"1357e3"}],["path",{d:"M3 3v5h5",key:"1xhq8a"}]]};n.node;const c=e(n);export{t as C,c as R};

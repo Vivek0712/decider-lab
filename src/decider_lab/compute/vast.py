@@ -16,7 +16,7 @@ import subprocess
 import time
 from typing import Any
 
-from .base import Host, Provider, wait_reachable
+from .base import Host, Provider
 
 LABEL_PREFIX = "decider-lab"
 DEFAULT_IMAGE = "pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime"
@@ -148,8 +148,20 @@ class VastProvider(Provider):
         while time.time() - t0 < self.boot_timeout:
             info = _vast("show", "instance", str(self.iid))
             if isinstance(info, dict) and info.get("actual_status") == "running" and info.get("ssh_host"):
-                host = Host(info["ssh_host"], int(info["ssh_port"]), "root", self.ssh_key)
-                return wait_reachable(host, max(60.0, self.boot_timeout - (time.time() - t0)), f"vast instance {iid}")
+                # two routes to the same machine: vast's ssh proxy and the direct public port; the
+                # proxy is sometimes refused for minutes while the direct port already works, or the
+                # other way round, so whichever answers first is used
+                routes = [Host(info["ssh_host"], int(info["ssh_port"]), "root", self.ssh_key)]
+                direct = ((info.get("ports") or {}).get("22/tcp") or [{}])[0].get("HostPort")
+                if info.get("public_ipaddr") and direct:
+                    routes.append(Host(str(info["public_ipaddr"]).strip(), int(direct), "root", self.ssh_key))
+                while time.time() - t0 < self.boot_timeout:
+                    for host in routes:
+                        if host.reachable(timeout=20):
+                            log(f"[vast] ssh via {'proxy' if host is routes[0] else 'direct port'}")
+                            return host
+                    time.sleep(10)
+                break
             time.sleep(15)
         remember_bad_machine(self.machine_id)
         raise TimeoutError(f"vast instance {self.iid} did not boot within {self.boot_timeout:.0f}s "

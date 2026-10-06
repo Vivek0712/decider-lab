@@ -218,3 +218,20 @@ def test_vast_skips_machines_that_failed_to_boot(monkeypatch):
         vast.VastProvider(boot_timeout=0.01).acquire(logs.append)
     assert created == ["1", "2"], "the second rental avoids the machine that failed to boot"
     assert any("skipping 1 offer" in m for m in logs)
+
+
+def test_vast_falls_back_to_the_direct_port(monkeypatch):
+    monkeypatch.setattr(vast, "offers", lambda *a, **k: [{"id": 1, "machine_id": 5, "gpu_name": "A100", "dph_total": 0.4}])
+    monkeypatch.setattr(vast, "bad_machines", lambda: {})
+
+    def fake_vast(*args, **k):
+        if args[:2] == ("create", "instance"):
+            return {"new_contract": 9}
+        return {"actual_status": "running", "ssh_host": "ssh2.vast.ai", "ssh_port": 23358,
+                "public_ipaddr": "142.0.0.1 ", "ports": {"22/tcp": [{"HostIp": "0.0.0.0", "HostPort": "21698"}]}}
+
+    monkeypatch.setattr(vast, "_vast", fake_vast)
+    monkeypatch.setattr(base.Host, "reachable", lambda self, timeout=30: self.host == "142.0.0.1")
+    logs = []
+    host = vast.VastProvider().acquire(logs.append)
+    assert (host.host, host.port) == ("142.0.0.1", 21698) and any("direct port" in m for m in logs)
