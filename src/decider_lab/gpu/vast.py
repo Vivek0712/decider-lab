@@ -65,7 +65,7 @@ def instances(label_prefix: str = LABEL_PREFIX) -> list[dict[str, Any]]:
 def offers(gpu: str, *, num_gpus: int = 1, max_price: float = 1.0, disk_gb: int = 80,
            min_reliability: float = 0.98, min_gpu_ram_gb: int = 0) -> list[dict[str, Any]]:
     q = (f"num_gpus={num_gpus} gpu_name={gpu} rentable=true verified=true reliability>{min_reliability} "
-         f"disk_space>{disk_gb} dph_total<{max_price} cuda_max_good>=12.6 inet_down>200")
+         f"disk_space>{disk_gb} dph_total<{max_price} cuda_max_good>=12.6 inet_down>500")
     if min_gpu_ram_gb:
         q += f" gpu_ram>={min_gpu_ram_gb * 1024}"
     rows = _vast("search", "offers", q, "-o", "dph_total") or []
@@ -146,7 +146,7 @@ def run_remote(lab_path: str, *, gpu: str = "RTX_4090", num_gpus: int = 1, max_p
                max_hours: float = 2.0, disk_gb: int = 80, strands_spec: str | None = None,
                ssh_key: str = "~/.ssh/id_ed25519", env: list[str] | None = None, keep: bool = False,
                run_args: str = "", image: str = DEFAULT_IMAGE, min_gpu_ram_gb: int = 0,
-               fast_kernels: bool = False, log=print) -> str:
+               fast_kernels: bool = False, boot_timeout: float = 1800, log=print) -> str:
     lab_path = os.path.abspath(lab_path)
     lab_dir, lab_file = os.path.dirname(lab_path), os.path.basename(lab_path)
     name = os.path.splitext(lab_file)[0]
@@ -177,7 +177,7 @@ def run_remote(lab_path: str, *, gpu: str = "RTX_4090", num_gpus: int = 1, max_p
 
     old = signal.signal(signal.SIGINT, lambda *a: (cleanup(), sys.exit(130)))
     try:
-        host = wait_ssh(iid, ssh_key)
+        host = wait_ssh(iid, ssh_key, timeout=boot_timeout)
         log(f"[gpu] ssh ok: {host.host}:{host.port}")
         host.rsync(package_root() + "/", host.remote("/root/decider-lab/"),
                    excludes=(".git", "runs", ".venv", "__pycache__", "*.egg-info", ".pytest_cache"))
