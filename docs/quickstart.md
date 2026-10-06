@@ -4,7 +4,7 @@
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
-pip install "decider-lab @ git+https://github.com/<you>/decider-lab"
+pip install "decider-lab @ git+https://github.com/Vivek0712/decider-lab"
 decider-lab doctor
 ```
 

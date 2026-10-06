@@ -1,8 +1,8 @@
-"""The generator-backed families of unseen-v2: every gold label is computed by a program.
+"""Generated families: every gold label is computed by a program.
 
-Four families, each asked as all three question types, none of them a training family
-(data/sources.md, and src/strands_decider/data/families/ for the A1 generators;
-tests/test_unseen_v2.py and tests/test_families.py hold the disjointness):
+Four families, each asked as all three question types. They come from the held-out set used
+to evaluate Strands Decider checkpoints (unseen-v2), where none of them was a training family.
+Train on them and they become *seen* families for that model:
 
   chess       positions reached by seeded random play (python-chess, rules only, no
               engine): is the side to move in check, is a move legal, which move gives
@@ -20,8 +20,8 @@ fit (a rare position, a value too close to a level boundary) and the caller draw
 generator yields it, so labels are balanced within every template: yes/no half and half,
 choice positions uniform, score levels uniform. Everything follows from one `random.Random`, so a seed gives the same rows.
 
-python-chess (GPL-3.0) is a build-time tool here, not a dependency of the package: the
-rows record positions and rule facts, and nothing of python-chess is redistributed.
+python-chess (GPL-3.0) is only needed to generate the chess family (the optional `chess`
+extra); the rows record positions and rule facts, and nothing of python-chess is redistributed.
 """
 
 from __future__ import annotations

@@ -26,6 +26,7 @@ dev = ["pytest>=8", "ruff>=0.6"]
 decider-lab = "decider_lab.cli:main"
 
 [project.urls]
+Homepage = "https://github.com/Vivek0712/decider-lab"
 "Strands Decider" = "https://github.com/strands-labs/strands-decider"
 
 [tool.hatch.build.targets.wheel]

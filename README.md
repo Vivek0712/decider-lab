@@ -5,7 +5,7 @@
 decider-lab is the harness behind a series of Strands Decider experiments, turned into a tool so you do not have to rebuild it. It is built around [Strands Decider](https://github.com/strands-labs/strands-decider)'s decision rows and System One API, and it is open to any model you can put behind an adapter: a Strands Decider checkpoint, any System One server, an OpenAI-compatible chat model, or your own Python function.
 
 ```bash
-pip install "decider-lab @ git+https://github.com/<you>/decider-lab"   # core: no torch, no GPU
+pip install "decider-lab @ git+https://github.com/Vivek0712/decider-lab"   # core: no torch, no GPU
 decider-lab init my-lab && cd my-lab
 decider-lab run lab.yaml          # -> runs/first-lab/REPORT.md
 ```
