@@ -65,6 +65,16 @@ decider-lab run lab.yaml --on aws --instance-type g6e.xlarge     # or --on vast 
 
 Python 3.10 or newer. The core depends only on PyYAML.
 
+## Verified end to end
+
+| where | what ran | result |
+|---|---|---|
+| vast.ai, 1x A100 40 GB | v19, v21 and a baseline on `smoke` + `synthetic`; JevBench public on v19; a 150-step `continue_from` fine-tune of v19 on 3,591 generated rows (leak-checked), calibrated, served and compared with v19 | lab finished in 537 s after bootstrap, 0 failures; JevBench v19 169/231 (proxy 29.7, matching earlier v19 runs); fine-tuned vs v19 on `synthetic` test: Intelligence +23.4 (95% CI 18.2 to 28.7), accuracy 40.7% -> 54.4%; instance destroyed |
+| AWS EC2, c7i.2xlarge (CPU) | v19 served on CPU and a baseline on `smoke` | 90/90 answered, 0 errors; instance terminated, security group and key pair deleted |
+| laptop | baselines and a Python model on `smoke` + `synthetic` | 7 s |
+
+The fine-tune was trained on the same generated families it was scored on (different rows, leak-checked), so it shows the loop works and what training on a family does, not general ability.
+
 ## Docs
 
 - [docs/quickstart.md](docs/quickstart.md): from nothing to a report, then to a fine-tuned model

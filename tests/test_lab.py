@@ -22,8 +22,9 @@ def test_lab_end_to_end_writes_report(fake_server, tmp_path):
     p = write_lab(tmp_path, url)
     assert main(["run", str(p)]) == 0
     root = tmp_path / "runs" / "t"
-    for d in ("fake/smoke", "fake/smoke+cal", "majority/smoke"):
+    for d in ("fake/smoke", "majority/smoke"):
         assert (root / d / "scores.json").exists(), d
+    assert not (root / "fake" / "smoke+cal").exists(), "smoke has too few dev rows to fit temperatures"
     report = (root / "REPORT.md").read_text()
     assert "| fake |" in report and "Paired against **majority**" in report
     rep = json.loads((root / "report.json").read_text())
@@ -143,3 +144,11 @@ def test_one_failing_model_does_not_lose_the_others(fake_server, tmp_path):
     root = tmp_path / "runs" / "t"
     assert (root / "majority" / "smoke" / "scores.json").exists()
     assert "fake" in json.loads((root / "lab.json").read_text())["failures"][0]
+
+
+def test_lab_calibrates_when_dev_rows_suffice(fake_server, tmp_path):
+    url, _ = fake_server
+    p = write_lab(tmp_path, url, suites=[{"synthetic": {"per_kind": 25}}])
+    assert main(["run", str(p)]) == 0
+    cal = json.loads((tmp_path / "runs" / "t" / "fake" / "synthetic+cal" / "calibration.json").read_text())
+    assert cal["fit_split"] == "dev" and cal["score_split"] == "test"

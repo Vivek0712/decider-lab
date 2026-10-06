@@ -116,7 +116,14 @@ def run_model(name: str, spec: Any, lab: dict[str, Any], root: str, suites: list
             print(f"[decider-lab] {name} / {sname}: Intelligence {s['intelligence']} "
                   f"(95% CI {s.get('intelligence_ci95')}), accuracy {s['accuracy']}%, errors {s['errors']}",
                   flush=True)
-            if lab.get("calibrate") and has_splits:
+            dev_by_kind: dict[str, int] = {}
+            for r in rows:
+                if r.get("split") == "dev":
+                    dev_by_kind[r["kind"]] = dev_by_kind.get(r["kind"], 0) + 1
+            if lab.get("calibrate") and has_splits and max(dev_by_kind.values(), default=0) < 30:
+                print(f"[decider-lab] {name} / {sname}: too few dev rows to fit temperatures (fewer than 30 per "
+                      "kind); no +cal run", flush=True)
+            elif lab.get("calibrate") and has_splits:
                 info = calibrate.calibrate_run(d)
                 print(f"[decider-lab] {name} / {sname}+cal: T={info['temperatures']} "
                       f"Intelligence {info['before']['intelligence']} -> {info['after']['intelligence']}",

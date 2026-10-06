@@ -63,3 +63,7 @@ Beside it: **accuracy** (top option), **NLL** and **Brier** (proper scoring rule
 **Comparisons** are paired: both runs are scored on the same row ids, rows are resampled with replacement (bootstrap, 2,000 draws), and the 95% interval of the difference is reported. Read a delta whose interval contains zero as no measured difference.
 
 **Calibration** (`calibrate: true`, or `decider-lab calibrate RUN`) fits one temperature per kind on `dev` rows by minimising NLL and scores the result on `test` rows, written to `<run>+cal`. It makes probabilities honest; under the band rule, honest uncertainty on yes/no can lower Intelligence, and the report shows both so you can see it.
+
+## Comparing like with like
+
+Run every arm of a comparison on the same kind of device. The same v19 on the same 90 rows, served on a CPU (AWS c7i) and on a GPU (A100, bf16), agreed to a median of 0.002 in probability, but 3 yes/no answers moved across the 0.2/0.8 band edge, which moved Intelligence by 6.7 points (95% CI -0.0 to 14.8). `decider-lab compare cpu_run gpu_run --split all` measures this for your model.
