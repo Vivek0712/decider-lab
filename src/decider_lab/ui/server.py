@@ -98,6 +98,7 @@ def create_app(workspace: str, token: str, *, port: int | None = None, host: str
     app.middleware("http")(make_middleware(lambda: st.token, lambda: st.port, set(extra_hosts)))
     for r in ROUTERS:
         app.include_router(r)
+    api_jobs.install(st)  # job tracker: log parsers, progress and telemetry sampler (labs/jobs area)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], include_in_schema=False)
     def api_not_found(rest: str) -> Response:

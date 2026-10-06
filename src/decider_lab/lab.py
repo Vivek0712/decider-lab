@@ -32,7 +32,7 @@ from typing import Any
 
 import yaml
 
-from . import calibrate, jevbench, report, runner, serve, sources
+from . import calibrate, jevbench, report, runner, serve, sources, telemetry
 from .adapters import make_adapter
 from .suites import load_suite
 
@@ -102,15 +102,16 @@ def run_lab(path: str, *, only: list[str] | None = None, limit: int | None = Non
     suites = [load_suite(s, base_dir=lab["_dir"]) for s in lab["suites"]]
     t0 = time.time()
     failures: list[str] = []
-    for name, spec in lab["models"].items():
-        if only and name not in only:
-            continue
-        os.makedirs(os.path.join(root, name), exist_ok=True)
-        try:
-            run_model(name, spec, lab, root, suites, limit, failures)
-        except Exception as e:  # one model failing must not lose the others' results
-            failures.append(f"{name}: {type(e).__name__}: {e}")
-            print(f"[decider-lab] FAILED {failures[-1]}", flush=True)
+    with telemetry.sampling(root):  # GPU, load and rows done every 10 s -> telemetry.jsonl; never fails the run
+        for name, spec in lab["models"].items():
+            if only and name not in only:
+                continue
+            os.makedirs(os.path.join(root, name), exist_ok=True)
+            try:
+                run_model(name, spec, lab, root, suites, limit, failures)
+            except Exception as e:  # one model failing must not lose the others' results
+                failures.append(f"{name}: {type(e).__name__}: {e}")
+                print(f"[decider-lab] FAILED {failures[-1]}", flush=True)
     rep = report.write(root, baseline=lab.get("baseline"), title=lab["name"])
     with open(os.path.join(root, "lab.json"), "w", encoding="utf-8") as fh:
         json.dump({k: v for k, v in lab.items() if not k.startswith("_")}
