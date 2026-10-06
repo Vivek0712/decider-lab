@@ -1,0 +1,30 @@
+# Fine-tune Strands Decider v19 on your own rows, then compare it with v19 on held-out rows.
+#
+# 1. training data (here: generated rows; yours via `decider-lab data from-csv`):
+#      decider-lab data generate --out data/train.jsonl --per-kind 400 --seed 7 --exclude-suite synthetic:per_kind=100
+#      decider-lab data leakcheck data/train.jsonl --against synthetic:per_kind=100
+# 2. run (needs a CUDA GPU; or decider-lab gpu run lab.yaml --gpu A100_SXM4 --max-price 1.5 --max-hours 2):
+#      decider-lab run lab.yaml
+name: finetune-lab
+workers: 8
+
+finetune:
+  mine:
+    from: StrandsAgents/strands-decider-2B-hobson-v19
+    train: data/train.jsonl
+    steps: 150            # a short run; remove for one full epoch
+    micro_batch_size: 8
+    grad_accum: 2
+    calibrate_on: data/calib.jsonl   # temperatures written into the checkpoint (strands-decider calibrate)
+
+models:
+  v19:
+    serve: StrandsAgents/strands-decider-2B-hobson-v19
+  # `mine` is added automatically: trained first, then served from its checkpoint
+  majority: {baseline: majority}
+
+suites:
+  - synthetic: {per_kind: 100}
+
+calibrate: true
+baseline: v19

@@ -1,0 +1,28 @@
+# A lab: which models answer which suites, and what to compare them with.
+# Run it:            decider-lab run lab.yaml
+# On a rented GPU:   decider-lab gpu run lab.yaml --gpu RTX_4090 --max-price 0.6 --max-hours 1
+name: first-lab
+workers: 8
+
+models:
+  # Strands Decider v19 (official release), started and stopped for you.
+  # Needs strands-decider installed here (pip install 'decider-lab[strands]') and a GPU or Apple MPS.
+  v19:
+    serve: StrandsAgents/strands-decider-2B-hobson-v19
+    model_name: strands-decider-2B-hobson-v19
+  # Any running System One server works the same way:
+  # remote: {url: "http://127.0.0.1:8000"}
+  # Your own code (see my_model.py):
+  heuristic: {python: "my_model:Heuristic"}
+  # The constant-answer floor every model must beat:
+  majority: {baseline: majority}
+
+suites:
+  - smoke                          # 90 generated rows, seconds
+  - synthetic: {per_kind: 100}     # 900 generated rows with dev/test splits
+  # - heldout                      # public held-out families (pip install 'decider-lab[heldout]')
+  # - file: data/my_eval.jsonl     # your own rows (decider-lab data from-csv ...)
+
+calibrate: true      # per-kind temperature fitted on dev, scored on test (adds <suite>+cal runs)
+baseline: majority   # every model is compared with this one, row by row
+# jevbench: [v19]    # also run JevBench's 231 public tasks (local v1.5-rule proxy)
