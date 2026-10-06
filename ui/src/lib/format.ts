@@ -20,7 +20,7 @@ export function fmtSigned(x: number | null | undefined, digits = 1): string {
 /** "57.9–64.8" for a CI. */
 export function fmtCI(ci: CI | null | undefined, digits = 1): string {
   if (!ci || ci[0] == null || ci[1] == null) return DASH;
-  return `${fixed(ci[0], digits)}–${fixed(ci[1], digits)}`;
+  return `${fixed(ci[0], digits)}, ${fixed(ci[1], digits)}`;
 }
 /** Latency: seconds with 2 decimals, ms below 1 s. */
 export function fmtLatency(s: number | null | undefined): string {

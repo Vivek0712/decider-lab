@@ -33,6 +33,6 @@ export function CardHeader({
   );
 }
 
-export function CardBody({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn("px-4 py-4 sm:px-5", className)}>{children}</div>;
+export function CardBody({ className, children, "data-testid": testId }: { className?: string; children: ReactNode; "data-testid"?: string }) {
+  return <div className={cn("px-4 py-4 sm:px-5", className)} data-testid={testId}>{children}</div>;
 }

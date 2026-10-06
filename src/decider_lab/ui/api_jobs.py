@@ -331,7 +331,7 @@ def _start_eval(st: StudioState, body: dict[str, Any]) -> dict[str, Any]:
     r["reused"] = max(0, done - errors) or None
     ctx = {"kind": "eval", "root": os.path.dirname(out), "out": out, "model_name": b.name,
            "reused": {f"{b.name}/{suite_name}": max(0, done - errors)}}
-    return _start(st, "eval", JobManager.cli_argv(*args), title=f"eval {value if b.model.type != 'serve' else b.name}",
+    return _start(st, "eval", JobManager.cli_argv(*args), title=f"eval {b.name} on {suite_name}",
                   cwd=st.workspace.root, ctx=ctx, options=b.model_dump(), runs=[r])
 
 
@@ -343,13 +343,29 @@ def _start_pull(st: StudioState, body: dict[str, Any]) -> dict[str, Any]:
                        "directory.", detail={"problems": [{"severity": "error", "code": "bad_source",
                                                            "message": "empty source", "line": None, "column": None,
                                                            "path": "source"}]})
-    if USERINFO.search(src) or PRESIGNED.search(src):
+    from .api_models import _has_credential  # one definition of "carries a credential" for the whole API
+
+    if USERINFO.search(src) or PRESIGNED.search(src) or _has_credential(src):
         raise ApiError(422, "credential_in_source", "This source carries a credential (URL user info or a presigned "
                        "query); it would be stored in the cache metadata.")
+    bad = [{"field": f, "message": "letters, digits and . _ - only"} for f, v in (("profile", b.profile),
+           ("region", b.region)) if v and not re.match(r"^[A-Za-z0-9._@+=,-]{1,64}$", v)]
+    if bad:
+        raise ApiError(422, "bad_request", "The request is not valid.", detail={"fields": bad})
     if b.sha256 and not re.match(r"^[0-9a-fA-F]{64}$", b.sha256):
         raise ApiError(422, "bad_request", "The request is not valid.",
                        detail={"fields": [{"field": "sha256", "message": "64 hexadecimal characters"}]})
-    kind = labs_core._source_kind(src)
+    # a directory in the workspace is local even when it looks like org/repo (ckpts/run-7)
+    local = os.path.join(st.workspace.root, os.path.expanduser(src))
+    if os.path.exists(local) or src.startswith((".", "/", "~")):
+        if not os.path.exists(local):
+            raise ApiError(422, "source_invalid", "This directory does not exist in the workspace.",
+                           detail={"problems": [{"severity": "error", "code": "bad_source",
+                                                 "message": f"no such directory: {src}", "line": None,
+                                                 "column": None, "path": "source"}]})
+        kind = "local"
+    else:
+        kind = labs_core._source_kind(src)
     if b.require_pinned and kind == "hf":
         rev = src.split("@", 1)[1] if "@" in src else (b.revision or "")
         if not FULL_SHA.match(rev):
@@ -360,7 +376,7 @@ def _start_pull(st: StudioState, body: dict[str, Any]) -> dict[str, Any]:
                       ("--region", b.region)):
         if val:
             args += [flag, val]
-    if b.require_pinned:
+    if b.require_pinned and kind == "hf":  # pinning only means something for hf:// sources
         args.append("--require-pinned")
     return _start(st, "pull", JobManager.cli_argv(*args), title=f"pull {src}", cwd=st.workspace.root,
                   ctx={"kind": "pull", "source": src}, options=b.model_dump())

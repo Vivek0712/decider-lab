@@ -169,7 +169,7 @@ def _from_file(src_name: str, fetch: Any, spec: str, opts: dict[str, Any], log: 
         fetch(blob)
         got = sha256_file(blob)
         if want and got != want:
-            raise ValueError(f"sha256 mismatch for {spec}: expected {want}, got {got}")
+            raise ValueError(f"sha256 does not match for {spec}: expected {want}, got {got}")
         if not want:
             log(f"[pull] WARNING: no sha256 given for {spec}; recorded {got} (pin it with sha256: {got})")
         if src_name.endswith(ARCHIVES):

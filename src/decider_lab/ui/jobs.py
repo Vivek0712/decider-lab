@@ -359,7 +359,11 @@ class JobManager:
         job_id = "j_" + secrets.token_hex(6)
         jd = os.path.join(self.dir, job_id)
         os.makedirs(jd, mode=0o700)
-        shown = self.display_argv(argv)
+        # paths inside the working directory are shown relative to it: shorter, and the same command
+        # works for anyone with the same workspace
+        base = os.path.realpath(cwd) + os.sep
+        shown = [os.path.relpath(a, cwd) if os.path.isabs(a) and os.path.realpath(a).startswith(base) else a
+                 for a in self.display_argv(argv)]
         rec: dict[str, Any] = {
             "job_id": job_id, "kind": kind, "title": title, "status": "queued", "backend": backend,
             "lab_id": lab_id, "created_at": now_iso(), "started_at": None, "ended_at": None,

@@ -1,1 +1,0 @@
-import{j as e}from"./react-eyfZxl2k.js";import{P as t}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function i(){return e.jsx(t,{area:"settings",title:"Settings",description:"Workspace, appearance, environment variables and versions."})}export{i as default};

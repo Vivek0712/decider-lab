@@ -67,7 +67,7 @@ def test_url_archive_is_verified_extracted_cached_and_query_never_recorded(http_
 def test_url_sha_mismatch_fails_and_leaves_nothing(http_dir):
     d, url = http_dir
     make_tar(d / "m.tar", CKPT)
-    with pytest.raises(ValueError, match="sha256 mismatch"):
+    with pytest.raises(ValueError, match="sha256 does not match"):
         sources.resolve(f"{url}/m.tar", {"sha256": "0" * 64}, log=lambda *_: None)
     assert not [x for x in os.listdir(sources._models_dir()) if not x.startswith(".")]
 

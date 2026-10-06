@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 // ---- utilities -----------------------------------------------------------------------------------
 
 /** Width of a container, tracked with ResizeObserver (charts are responsive to their card). */
-export function useWidth<T extends HTMLElement>(fallback = 640): [React.RefObject<T | null>, number] {
+export function useWidth<T extends HTMLElement>(fallback = 640): [React.RefObject<T>, number] {
   const ref = useRef<T>(null);
   const [w, setW] = useState(fallback);
   useEffect(() => {
@@ -611,7 +611,7 @@ export function ProbBars({ options, probs, gold, kind, top }: { options: [string
         return (
           <div key={i} className="grid grid-cols-[minmax(0,7rem)_1fr_3.5rem] items-center gap-2 text-small">
             <span className="truncate" title={desc}>
-              {i === gold && <span className="text-accent" aria-hidden>★ </span><span className="sr-only">gold answer: </span>}
+              {i === gold && <><span className="text-accent" aria-hidden>★ </span><span className="sr-only">gold answer: </span></>}
               {label(name)}
             </span>
             <span className="relative h-3 overflow-hidden rounded-xs bg-surface-3" aria-hidden>

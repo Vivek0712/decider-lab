@@ -1,1 +1,0 @@
-import{j as e}from"./react-eyfZxl2k.js";import{P as r}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function a(){return e.jsx(r,{area:"overview",title:"Overview",description:"What is running, what finished, and what to do next.",command:"decider-lab doctor"})}export{a as default};

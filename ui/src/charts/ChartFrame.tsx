@@ -91,11 +91,13 @@ export function ChartFrame({
           </table>
         </div>
       ) : (
-        <div role="img" aria-label={ariaLabel} style={{ height }} className="relative w-full">
+        <div role="img" aria-label={ariaLabel} style={{ minHeight: height }} className="relative w-full">
           {children}
         </div>
       )}
-      <table className="sr-only">
+      {/* sr-only on a <table> does not shrink it (tables size to content); wrap it so it cannot widen the page */}
+      <div className="sr-only">
+        <table>
         <caption>{ariaLabel}</caption>
         <tbody>
           {table.rows.slice(0, 50).map((r, i) => (
@@ -107,6 +109,7 @@ export function ChartFrame({
           ))}
         </tbody>
       </table>
+      </div>
     </figure>
   );
 }

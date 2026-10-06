@@ -1,1 +1,0 @@
-import{j as t}from"./react-eyfZxl2k.js";import{P as a}from"./Placeholder-BxnHWNK3.js";import"./index-DThUnhBr.js";function s(){return t.jsx(a,{area:"data",title:"Data",description:"Suites and the tools that make and check rows.",command:"decider-lab suites"})}export{s as default};
