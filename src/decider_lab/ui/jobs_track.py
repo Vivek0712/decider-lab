@@ -139,6 +139,12 @@ class JobState:
             return
         if status == "active" and s["status"] != "active":
             s["started_at"] = s["started_at"] or now
+            # stages are sequential: one starting means every earlier one finished
+            for prev in self.stages[: self.stages.index(s)]:
+                if prev["status"] in ("active", "pending"):
+                    prev["status"] = "done"
+                    prev["started_at"] = prev["started_at"] or now
+                    prev["ended_at"] = prev["ended_at"] or now
         if status in ("done", "failed", "warning", "skipped"):
             if s["status"] == "pending" and status != "skipped":
                 s["started_at"] = s["started_at"] or now

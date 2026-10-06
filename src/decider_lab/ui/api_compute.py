@@ -104,6 +104,9 @@ _pool = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix=
 # ---- shared helpers ----------------------------------------------------------------------------
 
 
+
+VAST_NOT_BILLING = ("exited", "stopped", "offline", "destroyed")  # every other status bills
+
 def _cloud(fn: Callable[[], T], *, what: str, timeout: float = CLOUD_TIMEOUT_S) -> T:
     """Run a cloud read with a deadline; a slow provider becomes `504 cloud_timeout`."""
     fut = _pool.submit(fn)
@@ -289,7 +292,8 @@ def _vast_instances(st: StudioState) -> list[dict[str, Any]]:
 @router.get("/compute/vast/instances")
 def vast_instances(st: StudioState = Depends(get_state)) -> dict[str, Any]:
     items = _overlay(st, _vast_instances(st), "vast")
-    burn = round(sum(float(i.get("dph_total") or 0) for i in items if i.get("status") == "running"), 4)
+    # vast.ai bills from creation: a machine still loading or scheduling costs money too
+    burn = round(sum(float(i.get("dph_total") or 0) for i in items if i.get("status") not in VAST_NOT_BILLING), 4)
     return {"fake": st.fake_cloud, "items": items, "usd_per_hour": burn}
 
 
@@ -781,7 +785,8 @@ def cloud_summary(st: StudioState, *, timeout: float = 5.0, max_age_s: float = 6
             rate_ok = False
             continue
         for r in _overlay(st, rows, name):
-            running = r.get("status", r.get("state")) in ("running", "pending")
+            st_ = r.get("status", r.get("state"))
+            running = st_ in ("running", "pending") if "state" in r and "status" not in r else st_ not in VAST_NOT_BILLING
             rate = r.get("dph_total") if name == "vast" else r.get("usd_per_hour")
             if running and rate is None:
                 rate_ok = False

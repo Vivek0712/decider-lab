@@ -365,7 +365,7 @@ export function RunDialog({ lab, open, onClose, initialOnly }: { lab: Lab; open:
             <label className="flex items-start gap-2 text-small">
               <input type="radio" name="root" className="mt-1 h-4 w-4 accent-[var(--accent)]" checked={rootMode === "existing"} onChange={() => setRootMode("existing")} data-testid="run-root-existing" />
               <span>
-                <code className="font-mono">{e?.resume.root ?? "…"}</code>
+                <code className="font-mono">{e?.resume.root ?? `${lab.dir}/runs/${lab.name}`}</code>
                 <span className="block text-muted" data-testid="run-resume">
                   {e?.resume.exists
                     ? e.resume.rows_reused != null

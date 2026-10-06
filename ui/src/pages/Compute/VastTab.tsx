@@ -65,7 +65,8 @@ export function VastTab() {
   const fake = status.data?.fake;
   const credit = status.data?.credit_usd ?? null;
   const items = instances.data?.items ?? [];
-  const running = items.filter((i) => i.status === "running");
+  // vast.ai bills from creation, so loading and scheduling machines count too
+  const running = items.filter((i) => !["exited", "stopped", "offline", "destroyed"].includes(String(i.status)));
   const idle = items.filter((i) => i.idle).length;
 
   const removeRow = (id: number) =>
@@ -155,12 +156,12 @@ export function VastTab() {
                 sub={status.data?.as_of ? `as of ${fmtRelative(status.data.as_of)}` : undefined}
                 title={status.data?.as_of ? fmtAbsolute(status.data.as_of) : undefined}
               />
-              <Stat data-testid="vast-running" label="Running instances" value={instances.data ? String(running.length) : "—"} sub={idle ? `${idle} idle · billing` : "none idle"} tone={idle ? "warning" : "neutral"} />
+              <Stat data-testid="vast-running" label="Active instances (billing)" value={instances.data ? String(running.length) : "—"} sub={idle ? `${idle} idle · billing` : "none idle"} tone={idle ? "warning" : "neutral"} />
               <Stat
                 data-testid="vast-burn"
                 label="Burn rate (est.)"
                 value={instances.data ? fmtRate(instances.data.usd_per_hour ?? 0) : "—"}
-                sub="sum of running decider-lab instances"
+                sub="sum of active decider-lab instances"
               />
             </div>
           )}

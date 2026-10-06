@@ -10,6 +10,7 @@ your vast.ai account (`ssh_key`, default ~/.ssh/id_ed25519). Instances are label
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -55,6 +56,36 @@ def offers(gpu: str, *, num_gpus: int = 1, max_price: float = 1.0, disk_gb: int 
     return rows if isinstance(rows, list) else []
 
 
+BAD_HOSTS_TTL_S = 24 * 3600
+
+
+def _bad_hosts_path() -> str:
+    from .. import suites
+
+    return os.path.join(suites.CACHE, "vast_bad_machines.json")
+
+
+def bad_machines() -> dict[str, float]:
+    """machine_id -> when it failed to boot; entries older than a day are forgotten."""
+    try:
+        with open(_bad_hosts_path(), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    now = time.time()
+    return {k: v for k, v in data.items() if now - float(v) < BAD_HOSTS_TTL_S}
+
+
+def remember_bad_machine(machine_id: Any) -> None:
+    if machine_id in (None, ""):
+        return
+    data = bad_machines()
+    data[str(machine_id)] = time.time()
+    os.makedirs(os.path.dirname(_bad_hosts_path()), exist_ok=True)
+    with open(_bad_hosts_path(), "w", encoding="utf-8") as fh:
+        json.dump(data, fh)
+
+
 def destroy(iid: int, *, verify: bool = True) -> bool:
     """Destroy with -y: without it the CLI asks, aborts, and the instance keeps billing."""
     subprocess.run([shutil.which("vastai") or "vastai", "destroy", "instance", str(iid), "-y"],
@@ -78,6 +109,7 @@ class VastProvider(Provider):
         self.ssh_key, self.image, self.min_gpu_ram_gb = ssh_key, image, min_gpu_ram_gb
         self.offer, self.boot_timeout, self.label = offer, boot_timeout, label
         self.iid: int | None = None
+        self.machine_id: Any = None
 
     def check(self, max_hours: float) -> None:
         budget = self.max_price * max_hours
@@ -91,11 +123,19 @@ class VastProvider(Provider):
                        min_gpu_ram_gb=self.min_gpu_ram_gb)
         if self.offer is not None:
             found = [o for o in found if int(o["id"]) == int(self.offer)]
+        else:
+            # a machine that failed to boot recently is skipped for a day (cheapest is not always best)
+            bad = bad_machines()
+            skipped = [o for o in found if str(o.get("machine_id")) in bad]
+            if skipped and len(skipped) < len(found):
+                log(f"[vast] skipping {len(skipped)} offer(s) on machines that failed to boot in the last 24 h")
+                found = [o for o in found if str(o.get("machine_id")) not in bad]
         if not found:
             raise RuntimeError(f"no vast.ai offer for {self.num_gpus}x {self.gpu} under ${self.max_price}/h"
                                + (f" with id {self.offer}" if self.offer else "")
                                + "; see `decider-lab compute offers --on vast --gpu ...`")
         o = found[0]
+        self.machine_id = o.get("machine_id")
         log(f"[vast] renting {self.num_gpus}x {o.get('gpu_name')} at ${o.get('dph_total', 0):.3f}/h (offer {o['id']})")
         res = _vast("create", "instance", str(o["id"]), "--image", self.image, "--disk", str(self.disk_gb), "--ssh",
                     "--direct", "--label", f"{LABEL_PREFIX}:{self.label}")
@@ -111,7 +151,9 @@ class VastProvider(Provider):
                 host = Host(info["ssh_host"], int(info["ssh_port"]), "root", self.ssh_key)
                 return wait_reachable(host, max(60.0, self.boot_timeout - (time.time() - t0)), f"vast instance {iid}")
             time.sleep(15)
-        raise TimeoutError(f"vast instance {self.iid} did not boot within {self.boot_timeout:.0f}s")
+        remember_bad_machine(self.machine_id)
+        raise TimeoutError(f"vast instance {self.iid} did not boot within {self.boot_timeout:.0f}s "
+                           f"(machine {self.machine_id} is skipped for the next 24 h)")
 
     def release(self, log: Any) -> None:
         if self.iid is None:

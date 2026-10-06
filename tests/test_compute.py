@@ -193,3 +193,28 @@ def test_yaml_on_key_is_read_despite_yaml_1_1(tmp_path):
     p = tmp_path / "lab.yaml"
     p.write_text("name: x\nmodels: {m: uniform}\ncompute:\n  on: aws\n")  # YAML 1.1: `on` -> True
     assert compute_config(build_parser().parse_args(["run", str(p)]))[0] == "aws"
+
+
+def test_vast_skips_machines_that_failed_to_boot(monkeypatch):
+    offers = [{"id": 1, "machine_id": 77, "gpu_name": "A100", "dph_total": 0.40},
+              {"id": 2, "machine_id": 88, "gpu_name": "A100", "dph_total": 0.45}]
+    monkeypatch.setattr(vast, "offers", lambda *a, **k: list(offers))
+    created = []
+
+    def fake_vast(*args, **k):
+        if args[:2] == ("create", "instance"):
+            created.append(args[2])
+            return {"new_contract": 5}
+        return {"actual_status": "loading"}
+
+    monkeypatch.setattr(vast, "_vast", fake_vast)
+    monkeypatch.setattr(vast.time, "sleep", lambda s: None)
+    p = vast.VastProvider(boot_timeout=0.01)
+    with pytest.raises(TimeoutError, match="machine 77 is skipped"):
+        p.acquire(lambda *_: None)
+    assert created == ["1"] and "77" in vast.bad_machines()
+    logs = []
+    with pytest.raises(TimeoutError):
+        vast.VastProvider(boot_timeout=0.01).acquire(logs.append)
+    assert created == ["1", "2"], "the second rental avoids the machine that failed to boot"
+    assert any("skipping 1 offer" in m for m in logs)
