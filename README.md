@@ -25,7 +25,7 @@
 
 **decider-lab** turns "I wonder if this model is better" into a report you can trust, in one command. It is the harness behind a long series of [Strands Decider](https://github.com/strands-labs/strands-decider) experiments, packaged so you never rebuild it: serve a model, ask it thousands of typed questions with known answers, score the answers with the JevBench rules, calibrate, compare models row by row with confidence intervals, fine-tune your own, and do all of it on whatever machine you have.
 
-It speaks Strands Decider natively, and it is open to **any decision model**: a checkpoint, any System One server, an OpenAI-compatible LLM, or a Python function.
+It speaks Strands Decider natively, and it is open to **any decision model**: a checkpoint, any System One server, an Amazon Bedrock model such as Nova Pro, a Strands Agents model, an OpenAI-compatible endpoint, or a Python function.
 
 ## ⚡ 60-second start
 
@@ -51,7 +51,7 @@ name: first-lab
 models:
   v19:      {serve: StrandsAgents/strands-decider-2B-hobson-v19}   # started, warmed up, verified, stopped
   mine:     {url: "http://10.0.0.5:8000"}                          # any System One server
-  gpt:      {chat: gpt-4.1-mini, api_key_env: OPENAI_API_KEY}       # an OpenAI-compatible LLM
+  nova:     {bedrock: us.amazon.nova-pro-v1:0, region: us-east-1}   # Amazon Bedrock (or strands:, chat:)
   my_code:  {python: "my_model:Heuristic"}                          # your own function
   majority: {baseline: majority}                                    # the floor every model must beat
 suites:
@@ -155,16 +155,19 @@ REPORT.md gives `b - a` with a paired 95% interval per suite. Run both on the sa
 </details>
 
 <details>
-<summary><b>A decider vs a general LLM on your task</b></summary>
+<summary><b>A 2B decider vs Amazon Nova Pro on your task</b></summary>
 
 ```yaml
 models:
-  v19: {serve: StrandsAgents/strands-decider-2B-hobson-v19}
-  llm: {chat: gpt-4.1-mini, api_key_env: OPENAI_API_KEY}
+  v19:  {serve: "hf://StrandsAgents/strands-decider-2B-hobson-v19@bb282d786bc251fd4e3068de3ada9ddbb38127cd"}
+  nova: {bedrock: us.amazon.nova-pro-v1:0, region: us-east-1, profile: research}
+  # or: {strands: {provider: bedrock, model_id: us.amazon.nova-pro-v1:0}}
+  # or any OpenAI-compatible endpoint: {chat: <model>, base_url: ..., api_key_env: ...}
 suites: [{file: data/tickets.jsonl}]
 calibrate: true
+baseline: nova
 ```
-The LLM states its probabilities as JSON; the decider reads them off its head. NLL, ECE and the band share show which one you can put a threshold on.
+Nova states its probabilities as JSON; the decider reads them off its head. NLL, ECE and the yes/no band share show which one you can put a threshold on. AWS credentials come from named environment variables (`access_key_id_env`, `secret_access_key_env`, `session_token_env`), a `profile`, or the default chain, and are never written to a run. → [docs/llms.md](docs/llms.md)
 </details>
 
 <details>
@@ -235,6 +238,7 @@ pip install "decider-lab[strands,heldout,aws,vast] @ git+https://github.com/Vive
 | `heldout` | the `heldout` suite (public datasets, built locally at pinned revisions) |
 | `chess` | the chess family of the generated suites |
 | `hub` | `hf://` model sources (included in `strands` and `heldout`) |
+| `bedrock` / `strands-agents` | Amazon Bedrock models / Strands Agents models as answerers |
 | `aws` / `vast` | the `--on aws` / `--on vast` backends, and `s3://` model sources (`aws`) |
 
 Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that has it ([strands-decider#29](https://github.com/strands-labs/strands-decider/pull/29)); otherwise decider-lab falls back to `init_from` and tells you.
@@ -246,6 +250,7 @@ Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that ha
 | [Quickstart](docs/quickstart.md) | nothing → a report → a fine-tuned model |
 | [Concepts](docs/concepts.md) | rows, suites, adapters, runs, and exactly how every score is defined |
 | [Models](docs/models.md) | Hugging Face, S3, URLs, directories; pinning, checksums, caching |
+| [LLMs](docs/llms.md) | Amazon Bedrock (Nova), Strands Agents, OpenAI-compatible endpoints; AWS credentials |
 | [Fine-tuning](docs/finetune.md) | data, leak checks, the recipe, continue vs init |
 | [Compute](docs/compute.md) | local, ssh, AWS and vast.ai; the traps the bootstrap handles |
 | [Extending](docs/extending.md) | your own adapter or suite; publishing an evaluation |

@@ -12,7 +12,7 @@
   <g font-size="15" filter="url(#s)">
     <rect x="40" y="140" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="168" fill="#14211A"><tspan font-weight="700">serve</tspan>  a checkpoint or hub id</text>
     <rect x="40" y="194" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="222" fill="#14211A"><tspan font-weight="700">url</tspan>  any System One server</text>
-    <rect x="40" y="248" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="276" fill="#14211A"><tspan font-weight="700">chat</tspan>  OpenAI-compatible LLM</text>
+    <rect x="40" y="248" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="276" fill="#14211A"><tspan font-weight="700">LLMs</tspan>  Bedrock · Strands · OpenAI</text>
     <rect x="40" y="302" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="330" fill="#14211A"><tspan font-weight="700">python</tspan>  your function</text>
     <rect x="40" y="356" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="384" fill="#14211A"><tspan font-weight="700">baseline</tspan>  the floor to beat</text>
   </g>

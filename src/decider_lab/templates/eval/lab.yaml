@@ -11,6 +11,8 @@ models:
     serve: hf://StrandsAgents/strands-decider-2B-hobson-v19@bb282d786bc251fd4e3068de3ada9ddbb38127cd
     model_name: strands-decider-2B-hobson-v19
   # Sources: hf://org/repo@commit, s3://bucket/key.tar (+ sha256), https://..., or a directory (docs/models.md).
+  # A general LLM on the same rows (docs/llms.md): Amazon Bedrock, Strands Agents or OpenAI-compatible.
+  # nova: {bedrock: us.amazon.nova-pro-v1:0, region: us-east-1}
   # Any running System One server works the same way:
   # remote: {url: "http://127.0.0.1:8000"}
   # Your own code (see my_model.py):

@@ -39,7 +39,9 @@ An adapter answers rows with one probability per option, in the row's option ord
 |---|---|
 | `{serve: <checkpoint or hub id>, vision: false}` | `strands-decider serve`, started for the lab and stopped after it |
 | `{url: http://...}` or a bare URL | any System One server (`POST /v1/systemone`) |
-| `{chat: <model>, base_url: ..., api_key_env: ...}` | an OpenAI-compatible chat model asked for JSON probabilities (text only) |
+| `{bedrock: us.amazon.nova-pro-v1:0, region: ...}` | an Amazon Bedrock model through the Converse API (text and images) ([llms.md](llms.md)) |
+| `{strands: {provider: ..., model_id: ...}}` | a Strands Agents model: bedrock, openai, anthropic, ollama, litellm |
+| `{chat: <model>, base_url: ..., api_key_env: ...}` | an OpenAI-compatible endpoint asked for JSON probabilities (text only) |
 | `{python: module:attr}` | a function `row -> probabilities`, or an object or class with `predict_one` / `predict` |
 | `uniform`, `majority`, `random` | baselines; `majority` is the constant-answer floor |
 
