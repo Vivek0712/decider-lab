@@ -246,7 +246,7 @@ function FamiliesTab({ rootId, suite, hasCal }: { rootId: string; suite: string;
         <SegmentedControl label="Metric" value={metric} onChange={setMetric} options={[{ value: "intelligence", label: "Intelligence" }, { value: "accuracy", label: "Accuracy" }]} />
         {hasCal && <SegmentedControl label="Scores" value={variant} onChange={setVariant} options={[{ value: "raw", label: "Raw" }, { value: "cal", label: "Calibrated" }]} />}
       </div>
-      <Card><CardBody data-testid="family-heatmap">
+      <Card><CardBody>
         {q.isLoading ? <Skeleton className="h-48" /> : q.data && q.data.families.length ? (
           <FamilyHeatmap families={q.data.families} models={q.data.models} cells={q.data.cells} metric={metric} />
         ) : <EmptyState title="No families" body="This suite's rows carry no task families." />}
@@ -312,7 +312,7 @@ function LatencyTab({ rootId, suite, colorOf }: { rootId: string; suite: string;
   return (
     <div className="flex flex-col gap-4">
       {q.data && !q.data.same_machine && <Callout tone="warning" title="Different machines">These runs did not all run on the same host, so their latencies are not directly comparable.</Callout>}
-      <Card><CardBody data-testid="latency-chart">
+      <Card><CardBody>
         {q.isLoading ? <Skeleton className="h-40" /> : (
           <LatencyDotRange items={(q.data?.items ?? []).map((it) => ({ ...it, color: colorOf(it.model) }))} />
         )}

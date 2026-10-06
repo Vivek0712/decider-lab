@@ -130,7 +130,7 @@ def test_queue_and_cancel_queued(tmp_path):
 def test_reattach_after_server_restart(tmp_path):
     state = str(tmp_path / "state")
     m1 = JobManager(state, poll_s=0.05)
-    job = m1.start("eval", [PY, "-c", "import time; print('a', flush=True); time.sleep(1.5); print('b')"],
+    job = m1.start("eval", [PY, "-c", "import time; print('a', flush=True); time.sleep(6); print('b')"],
                    title="survivor", cwd=str(tmp_path))
     _wait_for_line(m1, job["job_id"], "a")
     m1.shutdown(cancel_active=False)  # the server dies; the job keeps running

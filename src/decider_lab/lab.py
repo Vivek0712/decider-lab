@@ -126,7 +126,13 @@ def run_lab(path: str, *, only: list[str] | None = None, limit: int | None = Non
 def run_model(name: str, spec: Any, lab: dict[str, Any], root: str, suites: list[Any], limit: int | None,
               failures: list[str]) -> None:
     """Every suite (and JevBench, when asked) for one model."""
-    workers = int((spec.get("workers") if isinstance(spec, dict) else None) or lab.get("workers", 4))
+    own = spec.get("workers") if isinstance(spec, dict) else None
+    served = isinstance(spec, dict) and ("serve" in spec or "finetuned" in spec)
+    # A server decider-lab starts gets one request at a time unless the model sets its own
+    # `workers`: strands-decider serve (3e94e9d) runs concurrent requests on one model without a
+    # lock, and under 8 concurrent requests an A100 hit a sticky CUDA device-side assert
+    # (index out of bounds in the batched path) that failed every later request.
+    workers = int(own or (1 if served else lab.get("workers", 4)))
     with answerer(name, spec, lab, root) as adapter:
         for sname, rows, params in suites:
             rows = runner.select(rows, limit=limit)
