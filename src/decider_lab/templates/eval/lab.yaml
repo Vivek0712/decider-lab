@@ -1,6 +1,6 @@
 # A lab: which models answer which suites, and what to compare them with.
 # Run it:            decider-lab run lab.yaml
-# On a rented GPU:   decider-lab gpu run lab.yaml --gpu RTX_4090 --max-price 0.6 --max-hours 1
+# Elsewhere:         decider-lab run lab.yaml --on ssh|aws|vast   (see `compute:` below)
 name: first-lab
 workers: 8
 
@@ -26,3 +26,11 @@ suites:
 calibrate: true      # per-kind temperature fitted on dev, scored on test (adds <suite>+cal runs)
 baseline: majority   # every model is compared with this one, row by row
 # jevbench: [v19]    # also run JevBench's 231 public tasks (local v1.5-rule proxy)
+
+# Where to run: local (default), or a machine with a GPU. See docs/compute.md.
+compute:
+  on: local
+  max_hours: 2
+  # ssh:  {host: ubuntu@my-gpu-box, key: ~/.ssh/id_ed25519}
+  # aws:  {instance_type: g6e.xlarge, region: us-east-1, profile: default}
+  # vast: {gpu: A100_SXM4, max_price: 0.8, ssh_key: ~/.ssh/id_ed25519}

@@ -57,13 +57,23 @@ def checks() -> list[tuple[str, str, str]]:
                 "cached" if os.path.isdir(os.path.join(CACHE, "jevbench", ".git")) else "fetched on first use"))
     if shutil.which("vastai"):
         try:
-            from .gpu.vast import credit
+            from .compute.vast import credit
 
             out.append(("ok", "vast.ai", f"credit ${credit():.2f}"))
         except Exception as e:  # no key set, offline, ...
             out.append(("warn", "vast.ai", f"CLI present, but: {e}"[:200]))
     else:
-        out.append(("info", "vast.ai", "CLI not installed (only for `decider-lab gpu`): pip install vastai"))
+        out.append(("info", "vast.ai", "CLI not installed (only for `--on vast`): [vast] extra"))
+    if importlib.util.find_spec("boto3"):
+        try:
+            import boto3
+
+            ident = boto3.Session().client("sts").get_caller_identity()
+            out.append(("ok", "aws", f"credentials for account {ident['Account']} (default profile)"))
+        except Exception as e:  # no credentials, expired SSO, ...
+            out.append(("info", "aws", f"boto3 present; default credentials unusable ({type(e).__name__})"))
+    else:
+        out.append(("info", "aws", "boto3 not installed (only for `--on aws`): [aws] extra"))
     out.append(("ok" if os.environ.get("HF_TOKEN") else "info", "HF_TOKEN",
                 "set" if os.environ.get("HF_TOKEN") else "not set (public models do not need it)"))
     return out

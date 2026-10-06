@@ -29,7 +29,7 @@ baseline: v19
 | `continue_from` (strands-labs/strands-decider#29) | `continue_from` | the checkpoint's LoRA adapter and its trained pointer head: a real fine-tune |
 | only `init_from` (upstream main today) | `init_from`, with a warning | a new slot head on a frozen torso and adapter: cheap, much weaker |
 
-`decider-lab doctor` tells you which you have. To get `continue_from` before it is merged, install strands-decider from a branch that has it, for example with `decider-lab gpu run ... --strands-decider "strands-decider[vision,cuda] @ git+https://github.com/<fork>/strands-decider@<commit>"`.
+`decider-lab doctor` tells you which you have. To get `continue_from` before it is merged, install strands-decider from a branch that has it, for example with `compute.strands_decider: "strands-decider[vision,cuda] @ git+https://github.com/<fork>/strands-decider@<commit>"` in the lab, or `--strands-decider` on the command line.
 
 ## Data
 

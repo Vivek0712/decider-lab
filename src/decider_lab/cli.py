@@ -3,7 +3,8 @@
     decider-lab init my-lab [--template eval|finetune]   a ready-to-run lab directory
     decider-lab doctor                                  what this machine can do
     decider-lab run lab.yaml                            every model on every suite -> REPORT.md
-    decider-lab gpu run lab.yaml --gpu RTX_4090         the same, on a rented vast.ai GPU
+    decider-lab run lab.yaml --on aws|vast|ssh          the same on another machine (or compute: in lab.yaml)
+    decider-lab compute ls|down|offers --on vast|aws    machines decider-lab started
     decider-lab eval --model URL --suite smoke          one model, one suite, no lab file
     decider-lab compare RUN_A RUN_B                     paired difference with a 95% CI
     decider-lab calibrate RUN                           per-kind temperature (dev) -> RUN+cal (test)
@@ -45,10 +46,49 @@ def cmd_init(a: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_run(a: argparse.Namespace) -> int:
-    from .lab import run_lab
+# CLI flag -> (backend, its option name), so `--on vast --gpu A100_SXM4` needs no lab edit
+FLAG_OPTIONS = {"gpu": ("vast", "gpu"), "max_price": ("vast", "max_price"), "offer": ("vast", "offer"),
+                "num_gpus": ("vast", "num_gpus"), "instance_type": ("aws", "instance_type"),
+                "region": ("aws", "region"), "profile": ("aws", "profile"), "host": ("ssh", "host"),
+                "disk": (None, "disk_gb"), "ssh_key": (None, "ssh_key")}
 
-    run_lab(a.lab, only=a.only, limit=a.limit, out=a.out)
+
+def compute_config(a: argparse.Namespace) -> tuple[str, dict, dict]:
+    """(backend, the backend's options, the compute section) from lab.yaml, then CLI flags."""
+    import yaml
+
+    with open(a.lab, encoding="utf-8") as fh:
+        compute = dict((yaml.safe_load(fh) or {}).get("compute") or {})
+    on = a.on or compute.get("on") or "local"
+    opts = dict(compute.get(on) or {})
+    for flag, (backend, key) in FLAG_OPTIONS.items():
+        val = getattr(a, flag, None)
+        if val is None or (backend and backend != on):
+            continue
+        if key == "ssh_key" and on == "ssh":
+            key = "key"
+        if key == "ssh_key" and on == "aws":
+            continue  # aws makes its own key pair per run
+        opts[key] = val
+    return on, opts, compute
+
+
+def cmd_run(a: argparse.Namespace) -> int:
+    on, opts, compute = compute_config(a)
+    if on == "local":
+        from .lab import run_lab
+
+        run_lab(a.lab, only=a.only, limit=a.limit, out=a.out)
+        return 0
+    from .compute import make_provider, run_on
+
+    label = os.path.splitext(os.path.basename(a.lab))[0]
+    provider = make_provider(on, opts, label=label)
+    extra = " ".join([*(["--only", *a.only] if a.only else []), *(["--limit", str(a.limit)] if a.limit else [])])
+    run_on(provider, a.lab, max_hours=a.max_hours or float(compute.get("max_hours", 2.0)),
+           strands_spec=a.strands_decider or compute.get("strands_decider"), env=a.env or compute.get("env"),
+           keep=a.keep, run_args=extra, fast_kernels=a.fast_kernels or bool(compute.get("fast_kernels")),
+           log=lambda m: print(m, flush=True))
     return 0
 
 
@@ -180,28 +220,44 @@ def cmd_doctor(a: argparse.Namespace) -> int:
     return main()
 
 
-def cmd_gpu(a: argparse.Namespace) -> int:
-    from .gpu import vast
+def cmd_compute(a: argparse.Namespace) -> int:
+    if a.on == "vast":
+        from .compute import vast
 
-    if a.gpu_cmd == "offers":
-        rows = vast.offers(a.gpu, num_gpus=a.num_gpus, max_price=a.max_price, disk_gb=a.disk)
-        for r in rows[:15]:
-            print(f"{r['id']:>10}  {r['num_gpus']}x {r['gpu_name']:<14} ${r['dph_total']:.3f}/h  "
-                  f"{r.get('gpu_ram', 0) / 1024:.0f} GB  cuda {r.get('cuda_max_good')}  {r.get('geolocation', '')}")
-        print(f"{len(rows)} offers; credit ${vast.credit():.2f}")
-    elif a.gpu_cmd == "ls":
-        for r in vast.instances():
-            print(f"{r['id']:>10}  {r.get('label')}  {r.get('actual_status')}  ${r.get('dph_total', 0):.3f}/h")
-    elif a.gpu_cmd == "down":
-        ids = [r["id"] for r in vast.instances()] if a.all else a.ids
-        for i in ids:
-            print(f"{i}: {'destroyed' if vast.destroy(int(i)) else 'STILL LISTED, check vastai show instances'}")
-    elif a.gpu_cmd == "run":
-        vast.run_remote(a.lab, gpu=a.gpu, num_gpus=a.num_gpus, max_price=a.max_price, max_hours=a.max_hours,
-                        disk_gb=a.disk, strands_spec=a.strands_decider, ssh_key=a.ssh_key, env=a.env, keep=a.keep,
-                        run_args=a.run_args, min_gpu_ram_gb=a.min_gpu_ram, fast_kernels=a.fast_kernels, boot_timeout=a.boot_timeout, offer_id=a.offer,
-                        log=lambda m: print(m, flush=True))
-    return 0
+        if a.compute_cmd == "offers":
+            rows = vast.offers(a.gpu, num_gpus=a.num_gpus, max_price=a.max_price, disk_gb=a.disk)
+            for r in rows[:15]:
+                print(f"{r['id']:>10}  {r['num_gpus']}x {r['gpu_name']:<14} ${r['dph_total']:.3f}/h  "
+                      f"{r.get('gpu_ram', 0) / 1024:.0f} GB  cuda {r.get('cuda_max_good')}  {r.get('geolocation', '')}")
+            print(f"{len(rows)} offers; credit ${vast.credit():.2f}")
+        elif a.compute_cmd == "ls":
+            for r in vast.instances():
+                print(f"{r['id']:>10}  {r.get('label')}  {r.get('actual_status')}  ${r.get('dph_total', 0):.3f}/h")
+        else:
+            ids = [r["id"] for r in vast.instances()] if a.all else a.ids
+            for i in ids:
+                print(f"{i}: {'destroyed' if vast.destroy(int(i)) else 'STILL LISTED, check vastai show instances'}")
+        return 0
+    if a.on == "aws":
+        from .compute import aws
+
+        if a.compute_cmd == "offers":
+            print("aws: pick any instance type, e.g. g6e.xlarge (L40S 48 GB), g6.xlarge (L4 24 GB), "
+                  "g5.xlarge (A10G 24 GB), p4d/p5 for multi-GPU; c7i/m7i for CPU-only evaluation.")
+            return 0
+        rows = aws.tagged_instances(a.region, a.profile)
+        if a.compute_cmd == "ls":
+            for r in rows:
+                tags = {t["Key"]: t["Value"] for t in r.get("Tags", [])}
+                print(f"{r['InstanceId']}  {r['InstanceType']}  {r['State']['Name']}  {tags.get(aws.TAG)}")
+        else:
+            ids = [r["InstanceId"] for r in rows] if a.all else a.ids
+            if ids:
+                aws._boto(a.profile, a.region).client("ec2").terminate_instances(InstanceIds=ids)
+            print(f"terminating: {ids or 'nothing'}")
+        return 0
+    print(f"`compute {a.compute_cmd}` is for the vast and aws backends; {a.on} has nothing to list", file=sys.stderr)
+    return 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -218,11 +274,28 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("doctor", help="check this machine")
     s.set_defaults(fn=cmd_doctor)
 
-    s = sub.add_parser("run", help="run a lab file")
+    s = sub.add_parser("run", help="run a lab file, here or on another machine (--on / compute:)")
     s.add_argument("lab")
     s.add_argument("--only", nargs="*", help="only these models")
     s.add_argument("--limit", type=int, help="first N rows per kind of every suite (a quick look)")
     s.add_argument("--out", help="run root (default runs/<lab name>)")
+    s.add_argument("--on", choices=["local", "ssh", "aws", "vast"], help="where to run (default: lab's compute.on, "
+                   "else local)")
+    s.add_argument("--max-hours", type=float, help="hard deadline for a remote run (default 2)")
+    s.add_argument("--strands-decider", help="pip spec for strands-decider on the remote machine")
+    s.add_argument("--env", nargs="*", help="environment variables to pass to the remote run (e.g. HF_TOKEN)")
+    s.add_argument("--keep", action="store_true", help="leave the remote machine running (debugging)")
+    s.add_argument("--fast-kernels", action="store_true", help="also build causal-conv1d on the remote GPU")
+    s.add_argument("--gpu", help="vast: GPU name, e.g. A100_SXM4")
+    s.add_argument("--max-price", type=float, help="vast: $/hour cap")
+    s.add_argument("--offer", type=int, help="vast: this offer id")
+    s.add_argument("--num-gpus", type=int, help="vast: GPUs per machine")
+    s.add_argument("--instance-type", help="aws: e.g. g6e.xlarge")
+    s.add_argument("--region", help="aws: e.g. us-east-1")
+    s.add_argument("--profile", help="aws: credentials profile")
+    s.add_argument("--host", help="ssh: user@address[:port]")
+    s.add_argument("--disk", type=int, help="vast/aws: disk GB")
+    s.add_argument("--ssh-key", help="vast/ssh: private key")
     s.set_defaults(fn=cmd_run)
 
     s = sub.add_parser("eval", help="one model on one suite")
@@ -292,32 +365,22 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--label", default="model")
     s.set_defaults(fn=cmd_jevbench)
 
-    s = sub.add_parser("gpu", help="rented GPUs (vast.ai)")
-    gsub = s.add_subparsers(dest="gpu_cmd", required=True)
-    for name in ("offers", "run"):
-        g2 = gsub.add_parser(name)
-        if name == "run":
-            g2.add_argument("lab")
-            g2.add_argument("--max-hours", type=float, default=2.0)
-            g2.add_argument("--strands-decider", help="pip spec for strands-decider on the host")
-            g2.add_argument("--ssh-key", default="~/.ssh/id_ed25519")
-            g2.add_argument("--env", nargs="*", default=[], help="environment variables to pass (e.g. HF_TOKEN)")
-            g2.add_argument("--keep", action="store_true", help="do not destroy the instance (debugging)")
-            g2.add_argument("--run-args", default="", help="extra arguments for the remote `decider-lab run`")
-            g2.add_argument("--min-gpu-ram", type=int, default=0, help="GB")
-            g2.add_argument("--fast-kernels", action="store_true", help="also build causal-conv1d on the host")
-            g2.add_argument("--boot-timeout", type=float, default=1800,
-                            help="seconds to wait for the instance to boot and accept ssh (image pull)")
-            g2.add_argument("--offer", type=int, help="rent this offer id (from `gpu offers`) instead of the cheapest")
-        g2.add_argument("--gpu", default="RTX_4090")
-        g2.add_argument("--num-gpus", type=int, default=1)
-        g2.add_argument("--max-price", type=float, default=0.8, help="$/hour")
-        g2.add_argument("--disk", type=int, default=80, help="GB")
-    gsub.add_parser("ls")
-    g2 = gsub.add_parser("down")
-    g2.add_argument("ids", nargs="*")
-    g2.add_argument("--all", action="store_true", help="every instance labelled decider-lab:*")
-    s.set_defaults(fn=cmd_gpu)
+    s = sub.add_parser("compute", help="list, inspect or clean up remote machines (vast, aws)")
+    csub = s.add_subparsers(dest="compute_cmd", required=True)
+    for name in ("offers", "ls", "down"):
+        c = csub.add_parser(name)
+        c.add_argument("--on", choices=["vast", "aws"], default="vast")
+        c.add_argument("--region", default="us-east-1")
+        c.add_argument("--profile")
+        if name == "offers":
+            c.add_argument("--gpu", default="RTX_4090")
+            c.add_argument("--num-gpus", type=int, default=1)
+            c.add_argument("--max-price", type=float, default=0.8)
+            c.add_argument("--disk", type=int, default=80)
+        if name == "down":
+            c.add_argument("ids", nargs="*")
+            c.add_argument("--all", action="store_true", help="every machine decider-lab started")
+    s.set_defaults(fn=cmd_compute)
     return p
 
 

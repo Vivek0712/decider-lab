@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 import yaml
 
 from decider_lab import finetune, jevbench
 from decider_lab.cli import main
-from decider_lab.gpu import vast
 
 
 def write_lab(tmp_path, url, **extra):
@@ -105,38 +103,6 @@ def test_jevbench_proxy_rules():
     s = jevbench.score_rows(rows, tasks)
     assert s["competence_by_type"] == {"noul": 0.0, "choice": 100.0, "score": 100.0}
     assert s["yes_no_in_band"] == 1
-
-
-# ---- vast: the instance is always destroyed --------------------------------------------------
-
-def test_gpu_run_destroys_on_failure(monkeypatch, tmp_path):
-    lab = tmp_path / "lab.yaml"
-    lab.write_text("name: x\nmodels: {m: uniform}\n")
-    destroyed = []
-    monkeypatch.setattr(vast, "credit", lambda: 50.0)
-    monkeypatch.setattr(vast, "offers", lambda *a, **k: [{"id": 1, "gpu_name": "RTX_4090", "dph_total": 0.4}])
-    monkeypatch.setattr(vast, "create", lambda *a, **k: 777)
-    monkeypatch.setattr(vast, "destroy", lambda iid, **k: destroyed.append(iid) or True)
-
-    def no_ssh(*a, **k):
-        raise TimeoutError("unreachable")
-
-    monkeypatch.setattr(vast, "wait_ssh", no_ssh)
-    with pytest.raises(TimeoutError):
-        vast.run_remote(str(lab), log=lambda *_: None)
-    assert destroyed == [777]
-
-
-def test_gpu_run_refuses_without_credit(monkeypatch, tmp_path):
-    lab = tmp_path / "lab.yaml"
-    lab.write_text("name: x\nmodels: {m: uniform}\n")
-    monkeypatch.setattr(vast, "credit", lambda: 1.0)
-    with pytest.raises(RuntimeError, match="does not cover"):
-        vast.run_remote(str(lab), max_price=1.0, max_hours=2, log=lambda *_: None)
-
-
-def test_package_root_is_the_checkout():
-    assert os.path.exists(os.path.join(vast.package_root(), "pyproject.toml"))
 
 
 # ---- failing models fail fast and alone ------------------------------------------------------

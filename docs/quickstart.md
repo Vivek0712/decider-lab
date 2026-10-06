@@ -4,7 +4,7 @@
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
-pip install "decider-lab[gpu] @ git+https://github.com/<you>/decider-lab"
+pip install "decider-lab @ git+https://github.com/<you>/decider-lab"
 decider-lab doctor
 ```
 
@@ -36,11 +36,12 @@ decider-lab run lab.yaml       # v19 is downloaded, served, evaluated and stoppe
 
 Or point at a server you already run: `models: {mine: {url: "http://host:8000"}}`.
 
-No GPU here? Rent one for the length of the run:
+No GPU here? Run the same lab somewhere that has one ([compute.md](compute.md)):
 
 ```bash
-vastai set api-key <your key>          # once; add your ssh public key in the vast.ai console
-decider-lab gpu run lab.yaml --gpu RTX_4090 --max-price 0.6 --max-hours 1 --ssh-key ~/.ssh/id_ed25519
+decider-lab run lab.yaml --on ssh --host ubuntu@my-gpu-box            # a machine you have
+decider-lab run lab.yaml --on aws --instance-type g6e.xlarge           # pip install "decider-lab[aws]"
+decider-lab run lab.yaml --on vast --gpu RTX_4090 --max-price 0.6      # pip install "decider-lab[vast]"
 ```
 
 ## 4. Your own evaluation

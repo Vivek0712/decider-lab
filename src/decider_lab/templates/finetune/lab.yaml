@@ -3,7 +3,7 @@
 # 1. training data (here: generated rows; yours via `decider-lab data from-csv`):
 #      decider-lab data generate --out data/train.jsonl --per-kind 400 --seed 7 --exclude-suite synthetic:per_kind=100
 #      decider-lab data leakcheck data/train.jsonl --against synthetic:per_kind=100
-# 2. run (needs a CUDA GPU; or decider-lab gpu run lab.yaml --gpu A100_SXM4 --max-price 1.5 --max-hours 2):
+# 2. run (needs a CUDA GPU here, or set compute.on below / pass --on aws|vast|ssh):
 #      decider-lab run lab.yaml
 name: finetune-lab
 workers: 8
@@ -28,3 +28,11 @@ suites:
 
 calibrate: true
 baseline: v19
+
+# Where to run: local (default), or a machine with a GPU. See docs/compute.md.
+compute:
+  on: local
+  max_hours: 2
+  # ssh:  {host: ubuntu@my-gpu-box, key: ~/.ssh/id_ed25519}
+  # aws:  {instance_type: g6e.xlarge, region: us-east-1, profile: default}
+  # vast: {gpu: A100_SXM4, max_price: 0.8, ssh_key: ~/.ssh/id_ed25519}

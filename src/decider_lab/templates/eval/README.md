@@ -8,4 +8,4 @@ OpenAI-compatible chat model (`chat`), your own Python (`python`), or a baseline
 built-ins or your own JSONL. Every run writes predictions, scores and who answered into
 runs/first-lab/<model>/<suite>/, and REPORT.md puts them side by side with paired 95% intervals.
 
-No local GPU? `decider-lab gpu run lab.yaml --gpu RTX_4090 --max-price 0.6 --max-hours 1`.
+No local GPU? `decider-lab run lab.yaml --on ssh|aws|vast` (docs/compute.md).

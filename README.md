@@ -1,6 +1,6 @@
 # decider-lab
 
-**Evaluate, calibrate, compare and fine-tune decision models, from one YAML file, on your laptop or on a rented GPU.**
+**Evaluate, calibrate, compare and fine-tune decision models, from one YAML file, on your laptop, your own server, AWS, or a rented GPU.**
 
 decider-lab is the harness behind a series of Strands Decider experiments, turned into a tool so you do not have to rebuild it. It is built around [Strands Decider](https://github.com/strands-labs/strands-decider)'s decision rows and System One API, and it is open to any model you can put behind an adapter: a Strands Decider checkpoint, any System One server, an OpenAI-compatible chat model, or your own Python function.
 
@@ -18,7 +18,7 @@ decider-lab run lab.yaml          # -> runs/first-lab/REPORT.md
 | know if model A beats model B | a paired comparison on the same rows with a bootstrap 95% interval; a delta whose interval crosses zero is noise |
 | make probabilities honest | per-kind temperature fitted on `dev` and scored on `test`, for any model's outputs |
 | fine-tune your own decider | data from a CSV or from generators, a leak check against your evaluation, `strands-decider train` with the released recipe, calibration, then the same evaluation |
-| use a GPU you do not own | `decider-lab gpu run`: rents a vast.ai GPU, installs torch for the host's driver, runs the lab, copies the results back, and destroys the instance even when the run fails |
+| run somewhere else | `--on ssh` (a machine you have), `--on aws` (an EC2 instance launched and terminated for the run), `--on vast` (a rented GPU): one flow that checks quota or budget first, installs torch for that machine's driver, runs the lab, copies the results back, and releases the machine even when the run fails |
 | run JevBench | the 231 public tasks through JevBench's own harness against any System One URL, scored with the v1.5 rules (a local proxy, never a board score) |
 | publish an evaluation | a JSONL of decision rows is a suite; its sha256 fingerprint is recorded in every run, so others can check they scored the same rows |
 
@@ -49,7 +49,7 @@ Fine-tune Strands Decider v19 on your own rows and compare it with v19:
 
 ```bash
 decider-lab init ft --template finetune && cd ft && cat README.md
-decider-lab gpu run lab.yaml --gpu A100_SXM4 --max-price 0.8 --max-hours 2
+decider-lab run lab.yaml --on aws --instance-type g6e.xlarge     # or --on vast / --on ssh / here
 ```
 
 ## Install
@@ -60,7 +60,8 @@ decider-lab gpu run lab.yaml --gpu A100_SXM4 --max-price 0.8 --max-hours 2
 | `[strands]` | serving or fine-tuning Strands Decider on this machine (pins strands-decider from GitHub, which has image input) |
 | `[heldout]` | the `heldout` suite (public datasets, built locally at pinned revisions) |
 | `[chess]` | the chess family of the generated suites |
-| `[gpu]` | `decider-lab gpu` (the vast.ai CLI) |
+| `[aws]` | `--on aws` (boto3) |
+| `[vast]` | `--on vast` (the vast.ai CLI) |
 
 Python 3.10 or newer. The core depends only on PyYAML.
 
@@ -69,7 +70,7 @@ Python 3.10 or newer. The core depends only on PyYAML.
 - [docs/quickstart.md](docs/quickstart.md): from nothing to a report, then to a fine-tuned model
 - [docs/concepts.md](docs/concepts.md): rows, suites, adapters, runs, and how the scores are defined
 - [docs/finetune.md](docs/finetune.md): data, leak checks, the training recipe, and what to expect
-- [docs/gpu.md](docs/gpu.md): renting a GPU safely, and the traps the bootstrap handles
+- [docs/compute.md](docs/compute.md): running on this machine, your own server, AWS or vast.ai, safely
 - [docs/extending.md](docs/extending.md): your own adapter, your own suite, publishing an evaluation
 
 ## Honesty rules built in
