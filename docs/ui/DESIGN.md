@@ -32,7 +32,7 @@ Contents
 |---|---|
 | Local-first | Server binds 127.0.0.1 only. Token auth like Jupyter (URL token once, then an HttpOnly cookie). No analytics, no fonts or scripts from a CDN at runtime (all assets bundled), no request leaves the machine except the ones the person asked for (a pull, a cloud call, a remote run). |
 | Honest numbers | "Intelligence" is always labelled **local proxy** (JevBench v1.5 rules on this suite) and never called a score, a rank or a board number. Every comparison shows its 95% CI. Every row that failed is visible and counted; nothing is filtered out silently. Calibrated runs are labelled `+cal` and are never mixed into a raw column. |
-| Safe by default | Anything that spends money (remote run on vast or aws) or destroys something (destroy instance, terminate instance, delete a cached model, delete a lab file, delete a job record with its logs) needs a typed confirmation. The server enforces it (API.md, "Typed confirmation"), not just the dialog. Secrets are never displayed, logged or returned. AWS and other credentials are referenced by environment-variable name or profile name only. |
+| Safe by default | Anything that spends money (remote run on vast or aws; any run, local or remote, whose lab contains a model billed per request: `bedrock`, `strands`, or `chat` against a non-loopback URL) or destroys something (destroy instance, terminate instance, delete a cached model, delete a lab file, delete a run root's results, delete a job record with its logs) needs a typed confirmation. The server enforces it (API.md, "Typed confirmation"), not just the dialog. Secrets are never displayed, logged or returned. AWS and other credentials are referenced by environment-variable name or profile name only. |
 | Fast and calm | Dark-first, with a light theme. Keyboard-first (cmd/ctrl+K palette, `g` chords). No spinners longer than needed: skeletons for loads, optimistic UI only for reversible actions. No toasts for errors that need action: errors sit where the action was. |
 
 Non-goals for v1: multi-user, remote access, editing predictions, scheduling, a hosted
@@ -69,7 +69,7 @@ browser (React SPA)  --REST/JSON + SSE-->  Studio server (Python, in-process wit
 |---|---|---|
 | A: platform backend | `decider-lab ui` command, auth, settings, workspace scan, labs CRUD + validation, jobs (spawn, parse, cancel, SSE, telemetry sampler, redaction), meta/overview | `src/decider_lab/ui/{server,auth,jobs,redact,telemetry}.py`, `routes/{meta,labs,jobs,settings,overview}.py`, `tests/ui/test_{auth,labs,jobs,settings}.py` |
 | B: data backend | results, compare, export, models, data tools, suites, compute (doctor, vast, aws, ssh) and all fakes/fixtures | `routes/{runs,compare,models,data,suites,compute}.py`, `ui/fakes/*`, `tests/ui/test_{runs,models,data,compute}.py` |
-| C: frontend shell | app shell, design tokens, all shared components, palette, shortcuts, Overview, Labs, Jobs, Settings pages | `ui/src/{app,theme,components,palette,hooks}/**`, `ui/src/pages/{Overview,Labs,Jobs,Settings}/**`, `ui/e2e/{shell,overview,labs,jobs,settings}.spec.ts` |
+| C: frontend shell | app shell, design tokens, all shared components, palette, shortcuts, Overview, Labs, Jobs, Settings pages | `ui/src/{app,theme,components,palette,hooks}/**`, `ui/src/pages/{Overview,Labs,Jobs,Settings}/**`, `ui/e2e/{shell,overview,labs,jobs,settings,safety}.spec.ts` |
 | D: frontend analysis | charts, Results, Models, Data, Compute pages | `ui/src/charts/**`, `ui/src/pages/{Results,Models,Data,Compute}/**`, `ui/e2e/{results,models,data,compute}.spec.ts` |
 
 Shared, written first by C in a single commit before anything else: `ui/src/api/types.ts` (the
@@ -92,7 +92,25 @@ every page has data with no cloud and no GPU).
   em dash `—` with a tooltip saying why ("no dev rows", "not run", "failed").
 - Times: relative in lists ("4 min ago"), absolute ISO local time in tooltips and provenance.
 - URLs are state: every filter, tab, selected suite, toggle and comparison lives in the query
-  string so a view can be reloaded and pasted.
+  string so a view can be reloaded and pasted. The auth token never does (the server strips
+  `?token=` with a redirect, see API.md 1.2).
+- Naming across pages, API and CLI (use these words, never synonyms):
+
+  | concept | UI label | API field / value | CLI |
+  |---|---|---|---|
+  | where a run executes | "Where" (Run dialog), "Backend" (columns, filters) | `backend`: `local\|ssh\|aws\|vast` | `--on` |
+  | the run output directory | "Run root" | `root_id`, `RunOptions.out` | `--out` |
+  | one model on one suite | "Run" | `RunRef` | `run` dir `<model>/<suite>` |
+  | calibrated variant | "Calibrated" / tag `+cal` | `variant: "cal"`, suite `<suite>+cal` | `calibrate` |
+  | question kind | "yes/no", "choice", "score" | `noul`, `choice`, `score` | — |
+  | Intelligence | "Intelligence (local proxy)" | `intelligence` (+ `proxy_note`) | — |
+  | JevBench public | "JevBench public tasks · local v1.5-rule proxy" | `intelligence_proxy` | `jevbench` |
+  | hourly cloud price | "Cost rate (est.)" | `usd_per_hour` | — |
+
+- Lifecycle: jobs belong to the server process, not the browser. Closing the tab never stops a
+  job. Stopping `decider-lab ui` (Ctrl+C) with active jobs cancels them the same way the Cancel
+  button does (SIGTERM, so remote machines are released) and waits up to 60 s; a second Ctrl+C
+  exits at once and prints the ids of remote machines that may still be running (API.md 1.1).
 
 ---
 
@@ -113,7 +131,7 @@ Studio
 │   ├── Single run           /results/:rootId/:model/:suite
 │   └── Compare two runs     /results/compare?a=&b=&split=
 ├── Models                   /models                 tabs: Cache | Pull
-├── Data                     /data                   tabs: Suites | Files | Upload CSV | Generate | Split | Leakcheck
+├── Data                     /data                   tabs: Suites | Upload CSV | Generate | Split | Leakcheck
 ├── Compute                  /compute                tabs: Local | vast.ai | AWS | SSH hosts
 └── Settings                 /settings               tabs: Workspace | Appearance | Environment | About
 ```
@@ -182,9 +200,9 @@ Every action below lists its states. Shared rules, so they are not repeated per 
 ```
 ┌ Overview ───────────────────────────────────────────────────────── [Quick eval] [New lab] ┐
 │ ┌ KPI ──────────┐ ┌ KPI ──────────┐ ┌ KPI ──────────┐ ┌ KPI ──────────┐ ┌ KPI ─────────┐ │
-│ │ Labs          │ │ Runs scored   │ │ Best proxy    │ │ Active jobs   │ │ Cloud spend   │ │
-│ │ 4             │ │ 38            │ │ 61.4 v19/syn  │ │ 2 (1 remote)  │ │ $0.82/h now   │ │
-│ │ 1 invalid     │ │ 3 with errors │ │ CI 57.9–64.8  │ │               │ │ 1 instance    │ │
+│ │ Labs          │ │ Runs scored   │ │ Top on synth. │ │ Active jobs   │ │ Cost rate est.│ │
+│ │ 4             │ │ 38            │ │ 61.4 (proxy)  │ │ 2 (1 remote)  │ │ $0.61/h       │ │
+│ │ 1 invalid     │ │ 3 with errors │ │ v19 · 57.9–64.8│ │ 1 queued      │ │ 1 instance ⚠1 idle│ │
 │ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘ │
 │ ┌ Active jobs ─────────────────────────────────┐ ┌ Quick actions ─────────────────────────┐│
 │ │ ● run first-lab on vast  bootstrap  ▓▓▓░░ 3/7│ │ ▸ Run a lab…          ▸ Pull a model…   ││
@@ -192,10 +210,11 @@ Every action below lists its states. Shared rules, so they are not repeated per 
 │ │                                   View all → │ │ ▸ Compare two runs…   ▸ Check machine   ││
 │ └──────────────────────────────────────────────┘ └────────────────────────────────────────┘│
 │ ┌ Recent results ──────────────────────────────────────────────────────────────────────────┐│
-│ │ lab        model     suite        Intelligence (proxy) 95% CI     acc    errors  when     ││
-│ │ first-lab  v19       synthetic    61.4  ├──●──┤ 57.9–64.8         78.2%  0       2 h ago  ││
-│ │ first-lab  majority  synthetic     0.0  ├●┤     0.0–0.0           50.4%  0       2 h ago  ││
-│ │ nova-lab   nova      smoke        22.1  ├───●───┤ 9.3–34.0        61.1%  4 ⚠     1 d ago  ││
+│ │ lab        model     suite        Intelligence (proxy) · 95% CI   acc    n    errors  when ││
+│ │ first-lab  v19       synthetic    61.4  57.9–64.8                 78.2%  540  0       2 h  ││
+│ │ first-lab  majority  synthetic     0.0  0.0–0.0                   50.4%  540  0       2 h  ││
+│ │ nova-lab   nova      smoke        22.1  9.3–34.0                  61.1%  90   4 ⚠     1 d  ││
+│ │ nova-lab   claude    smoke        —     failed: AccessDenied (see job)          ✕       1 d  ││
 │ └──────────────────────────────────────────────────────────────────────────────────────────┘│
 │ Intelligence is a local proxy computed with the JevBench v1.5 rules on these suites. It is   │
 │ not a JevBench board score.                                                                   │
@@ -203,9 +222,23 @@ Every action below lists its states. Shared rules, so they are not repeated per 
 ```
 
 Data: `GET /api/overview`. KPI cards link to the filtered page (Labs with `?invalid=1`, Results,
-the best run, Jobs `?status=active`, Compute). "Cloud spend" shows the sum of `dph` of running
-instances the Studio knows about (vast + aws fixtures or reads); if no cloud backend is
-configured it shows `—` with "No cloud backend configured".
+the top run, Jobs `?status=active`, Compute).
+
+- "Top on <suite>" is the highest Intelligence (local proxy) on the most recently scored
+  non-smoke suite, with its CI and model name. It is never a workspace-wide "best": Intelligence
+  is only comparable between runs on the same rows, so the card names the suite and its tooltip
+  says "Only comparable with runs on the same suite and rows." If two or more runs on that suite
+  overlap the top CI, the sub line reads "≈ tied with n others" instead of implying a winner.
+- "Cost rate (est.)" is the sum of `usd_per_hour` of running decider-lab instances on vast and
+  aws (AWS from the static list-price table, so "est."). It is a rate, not money spent. A
+  `⚠ n idle` sub line counts instances that no active Studio job owns (they bill until
+  destroyed); clicking it opens Compute filtered to them. No cloud backend configured: `—` with
+  "No cloud backend configured". A cloud read that failed: `?` with "Could not read vast.ai" (the
+  number is never shown as 0 when unknown).
+- Recent results are sorted by time only, never by Intelligence, because rows mix suites. They
+  show the CI as text (no `CIBar`: a shared bar axis across different suites would invite a
+  comparison that is not valid). Models that failed before writing scores appear as rows with
+  `—` and the failure text, so failures are as visible as successes.
 
 Onboarding (shown instead of KPIs when the workspace has no labs and no runs; dismissible,
 remembered in settings `onboarding_dismissed`):
@@ -223,7 +256,7 @@ Each step's done state is derived from the server (`overview.onboarding`), not c
 
 | action | states |
 |---|---|
-| Quick eval (dialog, see 4.3.5) | idle, validating, error (inline), started (toast + JobChip) |
+| Quick eval (dialog, see 4.3.2) | idle, validating, error (inline), started (toast + JobChip) |
 | New lab | navigates to `/labs/new` |
 | KPI click | navigation |
 | Recent result row click | `/results/:rootId/:model/:suite` |
@@ -301,6 +334,15 @@ set)", "baseline names a model not in models"). Secret-looking literal values in
 **error** with the fix: "Put the key in an environment variable and reference it with
 `api_key_env: NAME`."
 
+Secret literals are never sent to the browser. The server masks their values as `••••` in the
+YAML it returns (API.md 5, "Masked secrets"); the editor shows those values as read-only
+`••••` widgets with the tooltip "Hidden: Studio never shows secret values." Saving keeps the
+original value on disk as long as the masked token stays at the same key. The Problems list
+offers a quick fix per literal: "Move to environment variable…" (dialog: variable name, default
+`<MODEL>_API_KEY`; it rewrites the line to `api_key_env: NAME` and says "The value is removed from
+this file. Set NAME in the shell you start `decider-lab ui` from, and rotate the key if this file
+was ever shared or committed.").
+
 Editor tab:
 
 ```
@@ -323,10 +365,21 @@ Editor tab:
   pill turns to "✕ n errors" and Run is disabled), conflict 409 (`Callout`: "lab.yaml changed on
   disk since you opened it." [Load disk version] [Overwrite]; Overwrite re-sends with
   `If-Match: *`).
+- Insert ▾ menu (toolbar): snippets for each model kind (`serve` hf/s3/https/dir, `url`,
+  `bedrock`, `strands`, `chat`, `python`, `baseline`), suites (smoke, synthetic with params,
+  heldout, a workspace JSONL file picker), `calibrate`, `baseline`, `jevbench`, `finetune` and a
+  `compute:` block per backend. Snippets are inserted as text at the cursor (Studio never
+  rewrites YAML structurally), then validated like any edit. Bedrock models and cached models
+  can also be inserted from Compute > AWS and Models ("Use in a lab…").
 - At < 640px the Problems/summary panel stacks below the editor.
 
 Runs tab: run roots of this lab (from `GET /api/runs?lab_id=:id`) as `RunRootCard`s plus the
 lab's jobs (`GET /api/jobs?lab_id=:id`). Empty: "This lab has not been run yet." [Run…].
+
+Paid models: the Summary marks every model billed per request (`bedrock`, `strands`, `chat` with
+a non-loopback URL) with a `paid API` badge (warning tone) and the tooltip "Each row is a billed
+request to this provider. Studio does not estimate token cost." These models make a run need a
+typed confirmation even on the local backend (4.2.3).
 
 #### 4.2.3 Run dialog `?run=1`
 
@@ -340,6 +393,8 @@ lab's jobs (`GET /api/jobs?lab_id=:id`). Empty: "This lab has not been run yet."
 │ Models  [✓ v19] [✓ heuristic] [✓ majority]     Limit rows per kind [   ] (all)  │
 │ Max hours [2.0]   Pass env vars [HF_TOKEN ×] [+ add name]   ☐ Keep machine (debug)│
 │ ☐ Fast kernels   strands-decider spec [default (pinned) ▾]                        │
+│ Run root  (●) runs/first-lab  resume: 412 rows already answered are reused        │
+│           ( ) new  [runs/first-lab-2026-10-06]                                     │
 │ ── Estimate ────────────────────────────────────────────────────────────────────│
 │ Cheapest matching offer   $0.612/h  (offer 1234567, 1× A100_SXM4 80 GB, Quebec)  │
 │ Spend cap                 at most $1.60  (max $0.80/h × 2.0 h)                   │
@@ -355,13 +410,26 @@ lab's jobs (`GET /api/jobs?lab_id=:id`). Empty: "This lab has not been run yet."
 
 - Fields per backend mirror `FLAG_OPTIONS` in `cli.py`: local (none), ssh (host select from
   Compute > SSH hosts or free text `user@host[:port]`, key path), aws (profile select, region,
-  instance type select with GPU memory and list price, disk GB), vast (gpu, num_gpus,
-  max_price, disk, offer, ssh key). Defaults come from the lab's `compute:` section.
+  instance type select with GPU memory and list price, disk GB; no key field: aws makes its own
+  key pair per run), vast (gpu, num_gpus, max_price, disk, offer, ssh key). The aws Estimate
+  always carries the "Estimate caveat (aws)" copy from section 10. Defaults come from the lab's `compute:` section.
 - Env vars: chips of **names** only. Each chip shows ● set / ○ not set (from
-  `GET /api/settings/env`). The value is never requested or shown.
+  `GET /api/settings/env?names=…`). The value is never requested or shown.
+- Run root: the SDK resumes (rows already answered without error are not asked again), so
+  re-running into an existing run root is cheap but mixes runs made at different times. The
+  dialog shows the existing root and how many rows it would reuse (`estimate.resume`); "new"
+  sets `out` (CLI `--out`) to a fresh directory. Defaults: existing root; Settings > Workspace
+  `runs_dir` changes the parent directory.
+- `--only` runs: the dialog notes "lab.json and REPORT.md will describe only the selected
+  models' failures; other models' existing results stay in the run root."
+- Keep machine: when checked on aws/vast, the estimate's spend cap no longer bounds cost. The
+  Estimate shows "No cap: the machine keeps billing $0.612/h after the run until you destroy it
+  in Compute." and the confirm phrase gains a suffix (`spend 1.60 on vast and keep the machine`).
 - Estimate: `POST /api/labs/:id/estimate` on open and on every field change (debounced 300 ms).
-  Local and ssh: "No cloud cost." and no typed confirmation. aws/vast: estimate + the server's
-  `confirm_phrase`; Start is disabled until the input equals it exactly (case-sensitive,
+  Local and ssh: "No cloud cost." and no typed confirmation, unless the selected models include
+  a paid API model: then the Estimate lists them ("nova (bedrock, us-east-1), claude (strands):
+  billed per request; ≈ 1,980 requests; no dollar estimate") and the confirm phrase is
+  `call paid apis` (API.md 2.4). aws/vast: estimate + the server's `confirm_phrase`; Start is disabled until the input equals it exactly (case-sensitive,
   trimmed). Estimate states: loading (skeleton lines), ok, blocked (`can_start: false` with
   `blockers[]`, e.g. "credit $1.20 does not cover the $1.60 cap (+$0.50 margin)", "G-instance
   vCPU quota is 0 in us-east-1: request L-DB2E81BA", "lab has 1 error"), error (retry).
@@ -375,13 +443,15 @@ lab's jobs (`GET /api/jobs?lab_id=:id`). Empty: "This lab has not been run yet."
 ```
 ┌ Jobs ────────────────────────────────────────────────────────────────────────────┐
 │ [Active] [Finished] [All]   [Kind: All ▾]  [Lab: All ▾]  [Search…]                │
-│ status       title                         kind   where   progress        started  dur │
-│ ● running    run first-lab                 run    vast    ▓▓▓▓░░ 4/6 runs  10:42   12m │
-│ ● running    pull hf://…/v19@bb282d7       pull   local   ▓▓░░░░ 38%       10:50   4m  │
-│ ✓ succeeded  eval http://127.0.0.1:8000    eval   local   90/90            09:12   41s │
-│ ◐ partial    run nova-lab                  run    local   5/6 · 1 failed   yday    18m │
-│ ✕ failed     jevbench v19                  jevb.  local   —                yday    2m  │
-│ ■ cancelled  run tune-v19                  run    aws     2/7 stages       Mon     3m  │
+│ status       title                       kind      backend progress        cost≈  started dur│
+│ ● running    run first-lab               run       vast    ▓▓▓▓░░ 4/6 runs $0.12  10:42   12m│
+│ ● running    pull hf://…/v19@bb282d7     pull      local   ▓▓░░░░ 38%      —      10:50   4m │
+│ ○ queued     run nova-lab                run       local   #1 in queue     —      —       —  │
+│ ✓ succeeded  eval http://127.0.0.1:8000  eval      local   90/90           —      09:12   41s│
+│ ◐ partial    run nova-lab                run       local   5/6 · 1 failed  —      yday    18m│
+│ ✕ failed     jevbench v19                jevbench  local   —               —      yday    2m │
+│ ■ cancelled  run tune-v19                run       aws     2/7 stages      $0.31  Mon     3m │
+│ ? lost       run first-lab               run       vast    3/7 stages      ?      Sun     —  │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -390,6 +460,11 @@ text, never color alone): queued ○ muted, running ● accent (pulsing dot; sta
 `prefers-reduced-motion`), cancelling ◌ warning, succeeded ✓ success, partial ◐ warning
 ("finished; some models failed"), failed ✕ danger, cancelled ■ muted, lost ? warning (server
 restarted while the job ran; process gone).
+
+Queued jobs show their queue position and the tooltip "Waiting for a free slot (max n jobs at
+once, Settings > Workspace)"; their row menu has Cancel. The `cost≈` column is the job's
+`cost_so_far_usd` for remote runs (an estimate; `?` for `lost` remote jobs) and `—` otherwise.
+Kind is spelled out (never abbreviated) and the column hides below 640 px.
 
 Empty: "No jobs yet. Runs, pulls and evals you start appear here with live logs."
 
@@ -404,9 +479,9 @@ Empty: "No jobs yet. Runs, pulls and evals you start appear here with live logs.
 │   0:02     3:41        0:22     6:03…                                                │
 │ machine  vast instance 9876543 · 1× A100_SXM4 · $0.612/h · cost so far ≈ $0.12      │
 │                                                                                     │
-│ Runs                                     rows            rows/s  errors  Intelligence│
-│ v19 / smoke          ✓ done             90/90   ▓▓▓▓▓▓   14.2    0       58.3        │
-│ v19 / synthetic      ● running          410/900 ▓▓▓░░░    9.8    2 ⚠     —           │
+│ Runs                                rows            rows/s errors Intelligence (proxy)·CI│
+│ v19 / smoke          ✓ done         90/90   ▓▓▓▓▓▓   14.2   0      58.3  51.2–65.0       │
+│ v19 / synthetic      ● running      410/900 ▓▓▓░░░    9.8   2 ⚠    —     (when done)     │
 │ v19 / synthetic+cal  ○ pending                                                      │
 │ heuristic / smoke    ○ pending  …                                                   │
 │ ┌ rows/s (last 10 min) ─────────────┐ ┌ errors (cumulative) ───────────────────────┐│
@@ -416,22 +491,34 @@ Empty: "No jobs yet. Runs, pulls and evals you start appear here with live logs.
 ```
 
 - Stages: remote runs `check, acquire, copy, bootstrap, run, fetch, release`; local runs
-  `prepare, run, report`; pull `resolve, download, verify, extract, done`; eval
+  `prepare, run, report` (labs with `finetune:` entries add a `finetune` stage before `run`, with
+  one sub-row per fine-tuned model showing step/total and the last loss when the train log
+  reports them, else "training… (see logs)"; remote runs show training inside `run`); pull `resolve, download, verify, extract, done`; eval
   `prepare, run`; jevbench `harness, run, score`; calibrate `fit, score`. Each stage:
   pending ○, active ● (with elapsed), done ✓ (duration), failed ✕ (the failing line is
   shown under it), skipped – . The release stage of a remote run is never "skipped" silently:
   if `--keep` was used it shows ⚠ "machine left running: release it in Compute".
 - Per model/suite progress comes from the server's `job.progress` (parsed from the CLI log and
   from `predictions.jsonl` line counts; see API.md). A model that failed shows ✕ with its
-  error line, and the remaining models keep going (that is how `run_lab` behaves).
+  error line, and the remaining models keep going (that is how `run_lab` behaves). The table
+  caption is the inline `ProxyNotice`; Intelligence appears only for finished runs and always
+  with its CI (a partial-run Intelligence would be misleading, so none is computed mid-run).
+  Resumed runs show "reused n rows" under the row counter.
+- Finished `partial` or `failed` run jobs show a danger callout listing `failures` with the
+  action [Re-run failed models…] (opens the Run dialog with `only` = the failed models and the
+  same backend; it never starts directly).
+- `lost` jobs (the server restarted while the job ran): warning callout "Studio stopped while this
+  job was running. Its log up to then is kept; the job's process is gone." For remote runs it
+  adds, in danger tone, "A machine may still be billing." with [Open Compute] pre-filtered to
+  the job's machine id when it was parsed.
 - Cancel (running/queued): confirm dialog (not typed; cancelling is safe) "Cancel this run?
   A remote machine is released before the job stops." → `POST /api/jobs/:id/cancel`. States:
   cancelling (button disabled, label "Cancelling… releasing machine"), cancelled.
   If the process does not exit in 60 s the server escalates; for remote jobs the job page then
   shows a danger callout "The machine may still be running" with a link to Compute.
 - Overflow menu: Re-run with same settings (opens the originating dialog prefilled; never
-  starts directly), Copy command, Download log, Delete record… (typed `delete`, finished jobs
-  only).
+  starts directly), Re-run failed models… (run jobs with failures), Copy command, Download log,
+  Delete record… (typed `delete`, finished jobs only; results are kept and the dialog says so).
 
 Logs tab:
 
@@ -462,13 +549,16 @@ available for run/eval jobs because they come from predictions files.
 Command tab: the argv as a copyable block, working directory, environment variable **names**
 passed (values never), exit code, start/end timestamps, the job's files (log path, run root).
 
-#### 4.3.5 Quick eval dialog (CLI `eval`)
+#### 4.3.2 Quick eval dialog (CLI `eval`)
 
 Fields: Model (segmented: URL of a System One server | baseline uniform/majority/random |
 serve a checkpoint (source field with the same validation as Models > Pull) | python
 `module:attr`), Name, Suite (`SuitePicker`), Split (auto/dev/test/all), Limit per kind,
-Workers (default 4), Vision toggle (serve only). Shows the command. `POST /api/jobs
-{kind:"eval"}`. Never costs money; no typed confirm.
+Workers (default 4), Vision toggle (serve only), Output directory (default `runs/<name>`; if it
+already holds this suite the dialog says the run resumes). Shows the command. `POST /api/jobs
+{kind:"eval"}`. The CLI `eval` takes no Bedrock, Strands or chat model; the dialog says "For
+Bedrock, Strands or OpenAI-compatible models, add them to a lab" with [New lab]. Never costs
+money; no typed confirm.
 
 ### 4.4 Results `/results`
 
@@ -479,7 +569,7 @@ List of run roots:
 │ [Search…]  [Lab: All ▾]                                                     │
 │ ┌ first-lab ─────────────────────────────────────────────── 2 h ago ─────┐ │
 │ │ 3 models · 2 suites · baseline majority · calibrated · 0 failures       │ │
-│ │ best on synthetic: v19 61.4 (57.9–64.8)   [Open]                        │ │
+│ │ top on synthetic: v19 61.4 (proxy · 57.9–64.8)   [Open]                 │ │
 │ └─────────────────────────────────────────────────────────────────────────┘ │
 │ ┌ nova-lab ──────────────────────────────────────────────── 1 d ago ─────┐ │
 │ │ 2 models · 1 suite · ⚠ 1 failure: nova: ThrottlingException …           │ │
@@ -493,8 +583,12 @@ Empty: "No results yet. A lab run writes runs/<lab>/ with a report; it appears h
 
 Header: lab name, run root path (copy), finished time, wall time, failures callout (danger, one
 line per `lab.json.failures` entry, never collapsed by default when non-empty), actions:
-[Export ▾] (REPORT.md, report.json, leaderboard CSV, predictions CSV for the selected suite),
-[Rebuild report] (`POST /api/runs/:rootId/report`), [Calibrate…] (per run, see below).
+[Export ▾] (REPORT.md, report.json, leaderboard CSV, predictions CSV for the selected suite,
+"Copy leaderboard as Markdown" with the proxy note and CIs included), [Rebuild report]
+(`POST /api/runs/:rootId/report`), [Calibrate…] (per run, see below), [Re-run failed models…]
+(when failures exist; opens the lab's Run dialog with `only` prefilled), and in the overflow
+menu "Delete results…" (typed confirm `delete <lab>`; removes the run root directory only,
+never the lab file, data or cached models; refused while a job writes to it).
 
 Suite selector (`SuitePicker` chips: `smoke`, `synthetic`, `jevbench`; `+cal` is NOT a separate
 chip: it is the Raw/Calibrated toggle) and a split note "Scored on: test (dev rows were used to
@@ -512,14 +606,25 @@ Suite [smoke] [synthetic●] [jevbench]      Scores: (●) Raw ( ) Calibrated ( 
 │ #  model      Intelligence (proxy) · 95% CI          acc %  NLL    ECE    yes/no in band  err  lat p50│
 │ 1  v19        61.4  ├────●────┤ 57.9 – 64.8           78.2   0.512  0.041  6.0 %           0    0.18 s│
 │ 2  heuristic  12.0  ├──●──┤ 8.1 – 15.9                55.0   0.690  0.012  0.0 %           0    1 ms  │
-│ 3  majority    0.0  ●  0.0 – 0.0                      50.4   0.693  0.004  100.0 %         0    1 ms  │
+│ 3  majority    0.0  ●  0.0 – 0.0  [baseline]          50.4   0.693  0.004  100.0 %         0    1 ms  │
 │ ─  nova       —  failed: ThrottlingException (see job)                                       ⚠ 540   │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
+ ☐ select two rows → [Compare selected]        n column: rows scored (shown when it differs)
  The CI bar uses one shared axis per table (−100 to 100 clipped to the data range ± 5).
  Ranks are shown only as order; two models whose CIs overlap get the same "≈" marker in #.
 ```
 
 - Columns sortable (click or Enter on header; `aria-sort`). Default sort Intelligence desc.
+- Same-rows check: when the rows' `n` differ, or the leaderboard's `same_rows.consistent` is
+  false (different suite fingerprints, a `--limit` run, a resumed partial run), a warning callout
+  sits above the table: "These models were not scored on the same rows (v19: 540, nova-lite: 90).
+  Their Intelligence values are not directly comparable; use Vs baseline or Compare, which pair
+  rows." The `n` column is then always visible and the mismatched cells get ⚠.
+- Only Intelligence has a CI on this table (the SDK bootstraps only it per run). Accuracy, NLL
+  and ECE headers carry the tooltip "Point estimate; for a CI on differences use Vs baseline or
+  Compare (paired bootstrap)." No column is ever drawn as a bar without a CI.
+- The baseline row has a `baseline` badge and the `--chart-baseline` color.
+- Selecting exactly two rows enables [Compare selected] → `/results/compare?a=&b=`.
 - "Both" shows raw and calibrated in adjacent sub-rows with a `+cal` tag and the fitted
   temperatures in a tooltip.
 - A model with `errors > 0` shows `n ⚠` in danger color with a tooltip "n of N rows failed and
@@ -534,22 +639,31 @@ toggle Δaccuracy, ΔNLL), with n paired. Empty: "No baseline set. Add `baseline
 lab to compare every model with it row by row." [Open editor].
 
 Families tab: `FamilyHeatmap` (7.3), models × families, Intelligence (toggle accuracy).
-Empty (≤ 1 family): "This suite has one family; nothing to break down."
+Caption: "Per-family values have no CI and rest on fewer rows than the suite total (n in each
+cell). Use them to find where a model fails, not to rank models." Empty (≤ 1 family): "This suite
+has one family; nothing to break down."
 
 Calibration tab: per model `ReliabilityDiagram` (7.4), small multiples (3 per row desktop, 1 on
 mobile), raw vs calibrated overlaid when a `+cal` run exists, and a table: kind, T, NLL before →
 after, ECE before → after, Intelligence before → after. Explains: "Temperature per question kind,
 fitted on dev rows by minimising NLL, scored on test rows. It changes confidence, not which option
-is on top, except where a yes/no answer moves across the 0.2–0.8 band." Calibrate action
+is on top, except where a yes/no answer moves across the 0.2–0.8 band." The table's
+"Intelligence before → after" cell also shows the paired Δ with its 95% CI and verdict words
+(`GET /api/runs/:rootId/calibration`), so a small gain inside the noise reads "No clear
+difference: the 95% CI includes 0." rather than as an improvement. Calibrate action
 (`POST /api/jobs {kind:"calibrate"}`) is offered per model/suite run that has dev rows and no
 `+cal`: states idle / running (JobChip) / done (refetch) / error `too_few_dev_rows` ("needs at
 least 30 dev rows of a kind; this run has 12").
 
 Latency tab: `LatencyChart` (7.5): p50 and p95 per model, plus a histogram for the selected
 model. Note: "Wall-clock per request from this machine, including network and queueing at
-`workers` concurrency. Compare only runs made on the same machine."
+`workers` concurrency. Compare only runs made on the same machine." When the runs on this tab
+were made on different hosts or with different `workers` (from provenance), a warning callout
+names them ("v19 ran on gpu-box with 8 workers; nova on this Mac with 4") and the chart groups
+models by host.
 
-JevBench tab: `JevBenchPanel` (7.7) for every model that has a `jevbench/scores.json`. Empty:
+JevBench tab: `JevBenchPanel` (7.7) for every model that has a `jevbench/scores.json`, in lab
+order (never sorted by score and with no "best" highlight, since no CI is available). Empty:
 "JevBench public tasks were not run for this lab. Add `jevbench: [model]` (System One models
 only), or run it against a URL." [Run JevBench…] (dialog: URL, label → `POST /api/jobs
 {kind:"jevbench"}`; it needs network to clone the harness at a pinned commit; the dialog says so).
@@ -577,7 +691,8 @@ description, server /health), model source (kind, resolved commit, sha256, cache
 suite sha256 with a "same rows" check across models (✓ all models scored suite rows with sha
 `3be1…`, or ⚠ "heuristic scored a different suite fingerprint"), host, platform, python, GPU,
 decider-lab version, finished time, wall time, workers, calibration temperatures and
-`calibrated_from`. Every value copyable. No secret ever appears because the SDK never writes one;
+`calibrated_from`, and the Studio job that produced the run when known ("job j_3f9a… →"). Every
+value copyable. No secret ever appears because the SDK never writes one;
 the server still runs `redact()` on these files before returning them.
 
 #### 4.4.2 Single run `/results/:rootId/:model/:suite`
@@ -603,6 +718,13 @@ per-family table, reliability diagram, the Rows explorer scoped to this model, p
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+Split: when neither run has split labels, `test` and `dev` keep every row (the SDK keeps rows
+whose split is empty) and the card says "These runs have no dev/test split: all rows are
+compared." A run that used `--limit` is tagged `limit n` in the pickers.
+
+Raw vs calibrated of the same run is one click: the A picker's overflow offers "Compare with its
++cal run".
+
 `GET /api/compare?a=&b=&split=`. Run pickers list every model/suite run in the workspace
 (grouped by run root; `+cal` runs listed with their tag). Errors: `no_shared_rows` ("These two
 runs share no rows: they scored different suites."), shown as an `ErrorState` in the result card.
@@ -625,7 +747,9 @@ Cache tab:
 
 Row menu: Copy source, Copy path, Use in a lab… (opens a lab picker, then the Editor with a
 snippet in the clipboard and a toast explaining where to paste; Studio does not rewrite YAML
-structurally), Delete from cache… (typed: the first 8 characters of the ref, e.g. `bb282d78`).
+structurally), Delete from cache… (typed: the first 8 characters of the ref, e.g. `bb282d78`;
+when `used_by_labs` is non-empty the dialog warns "first-lab uses this model; its next run will
+pull it again"; refused while a job uses it).
 Ref column: `pinned` badge (success) for full commits or sha256-verified files; `unpinned`
 badge (warning) with tooltip "resolved to <commit> at pull time; the branch may move".
 
@@ -650,6 +774,12 @@ Pull tab / dialog:
   unpinned hf sources show a warning and, when "Require pinned" is checked, an error that
   disables Pull. s3/https archives without sha256: warning "cannot be verified" unless
   `require_sha256` setting is on, then error.
+- Already cached (`inspect.cached: true`): an info callout "Already in the cache (pulled 2 d
+  ago, sha256 9a1f…). Pulling again re-uses it." with [Show in cache]; Pull stays enabled.
+- Presigned or credentialed URLs (`X-Amz-Signature=`, `user:pass@`): error `credential_in_source`
+  "This URL carries a credential. Use `s3://` with an AWS profile instead, or a URL without
+  credentials." Studio does not store or run such a source, because it would land in job logs,
+  the cache's `source.json` and run provenance.
 - Pull → `POST /api/jobs {kind:"pull"}`; progress shows bytes/total when known (parsed),
   else indeterminate. Success: toast "Pulled · sha256 verified" and the Cache tab refreshes.
   Failure `sha256_mismatch` is shown as a danger callout naming both hashes.
@@ -673,6 +803,9 @@ Suites tab:
 └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+The Suites tab has two sections, "Built-in suites" and "Workspace files (JSONL)"; a file's
+validity column is the CLI's `data check`, and [Inspect] is `data stats`.
+
 Inspect opens a `SuiteInspector` drawer: stats from `GET /api/suites/:ref/stats` (rows, by kind,
 by split, by task top 30, label balance per kind as small bar groups, rows with images, sha256)
 and a paged row browser (`GET /api/suites/:ref/rows`). Building a large suite (heldout) can take
@@ -688,10 +821,15 @@ uploading (progress), preview ok, preview with errors (table with row number + m
 disabled if any error), converting, done ("1,204 rows → data/my.jsonl" with [Inspect]).
 
 Generate tab: families checkboxes, per kind, seed, exclude suites (`SuitePicker multi`), output
-path → `POST /api/data/generate`. Result card: rows written, rows dropped as overlapping.
+path → `POST /api/data/generate`. Result card: rows written, rows dropped as overlapping, with
+[Inspect] and [Leakcheck against…] (prefilled). Defaults `exclude_suites` to every suite used by
+a lab in the workspace, with the note "Rows that also appear in these suites are dropped, so
+you do not train on what you evaluate on."
 
 Split tab: input file, dev fraction (0.05–0.95, default 0.4), seed, output path →
-`POST /api/data/split`. Result: by-split counts.
+`POST /api/data/split`. Result: by-split counts, [Inspect], and a copyable suite snippet for the
+lab (`- data/my-split.jsonl`). Calibration needs ≥ 30 dev rows per kind; the form shows the
+projected dev rows per kind and warns below 30.
 
 Leakcheck tab: training file, against (suites/files, multi), optional "write clean copy to" →
 `POST /api/data/leakcheck`. Result: train rows, eval rows, overlapping (danger if > 0), up to 5
@@ -729,6 +867,13 @@ vast.ai tab:
   (row removed, toast), still listed (danger callout: "Instance 9876543 is still listed. Check
   `vastai show instances`.").
 - "Destroy all decider-lab instances…": typed `destroy all`.
+- Only machines labelled `decider-lab` are listed or destroyable; the panel says "Other machines
+  in your vast.ai account are not shown and never touched."
+- An instance no active Studio job owns gets a warning badge `idle · billing` with the tooltip
+  "No Studio job is using this machine. It bills until you destroy it." (It may belong to a CLI
+  run started outside Studio; the tooltip says so too.) One that a running job owns links to
+  the job, and Destroy… warns "Job run first-lab is using this machine and will fail."
+- Credit: shown with "as of <time>" and refreshed with the panel; below $5 it turns warning.
 
 AWS tab:
 
@@ -754,6 +899,10 @@ AWS tab:
 - Every panel loads independently; a permissions error in one (e.g. `AccessDenied` for Service
   Quotas) shows in that panel only, with the missing IAM action named.
 - Terminate…: typed confirmation of the instance id; "Terminate all…" typed `terminate all`.
+  Same `idle · billing` badge and job-owner warning as vast. Only instances tagged `decider-lab`
+  are listed or terminable.
+- Identity failure (expired SSO, no credentials) is a panel-level warning with the fix as a
+  copyable command (`aws sso login --profile heisenberg`); Studio never runs it or asks for keys.
 - "Copy model spec" copies `{bedrock: us.amazon.nova-pro-v1:0, region: us-east-1}`.
 - Real AWS calls are read-only (`sts:GetCallerIdentity`, `service-quotas:GetServiceQuota`,
   `ec2:DescribeInstances`, `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles`)
@@ -787,7 +936,8 @@ indicator; Studio never reads the key), remote work dir (optional). Test → `PO
   `AWS_REGION`, `AWS_DEFAULT_REGION`, `OPENAI_API_KEY`, `DECIDER_LAB_CACHE`,
   `STRANDS_DECIDER_PYTHON`, `HF_HUB_OFFLINE`, `DECIDER_LAB_FAKE_CLOUD`, plus every `*_env`
   name referenced by a lab) with ● set / ○ not set and which labs reference them. Values are
-  never shown. Copy: "Set these in the shell you start `decider-lab ui` from."
+  never shown, and there is no input to set one. Copy: "Set these in the shell you start
+  `decider-lab ui` from, then restart Studio." (the server's environment is read at start).
 - About: versions (decider-lab, Python, strands-decider if importable, Studio build hash), cache
   dir, workspace state dir, license, links to docs (local docs/ files rendered as text, no
   network), "Studio sends no telemetry."
@@ -1044,7 +1194,10 @@ carries the numbers as text).
 - Vertical reference line at 0 labelled "baseline: <name>".
 - Color by verdict, not by model: CI entirely on the better side → `--success`; entirely on the
   worse side → `--danger`; crosses 0 → `--text-subtle`. "Better" means > 0 for Intelligence and
-  accuracy and < 0 for NLL. Right-hand text column: `+61.4 (57.2 to 65.3) · 540 rows`.
+  accuracy and < 0 for NLL. Right-hand text column: `+61.4 (57.2 to 65.3) · 540 rows · better`
+  (the verdict word is always printed, so color is never the only carrier of the verdict).
+- Point estimates are never drawn without whiskers here; a missing CI (too few paired rows)
+  draws a hollow point and the text "no CI: n paired rows".
 - Tooltip: model, Δ with CI, n paired, verdict sentence ("Better than majority: the 95% CI
   excludes 0." / "No clear difference: the 95% CI includes 0.").
 - Sort: by Δ desc (toggle: lab order).
@@ -1089,6 +1242,9 @@ carries the numbers as text).
   GPU util % 0–100, memory used GB 0–total (total drawn as a dashed line), temperature °C
   0–100 (85 °C dashed warning line), power W 0–limit (limit dashed), rows/s 0–auto, errors
   cumulative 0–auto (danger color). One line per GPU index (chart palette) for multi-GPU.
+  Fine-tune jobs add a training loss chart (step on x, loss on y, auto domain starting at the
+  minimum observed loss, labelled "training loss (from the train log)") when the log reports it.
+- rows/s is a 30 s moving rate and the caption says so; the y axis always starts at 0.
 - Small multiples: 3×2 grid ≥ 1024, 2 columns ≥ 640, 1 column below. Height 140 each.
 - Gaps when a sample is missing (no interpolation across > 2 missing intervals).
 - Tooltip crosshair shared across the grid (hovering one chart shows the same timestamp in all).
@@ -1129,10 +1285,12 @@ opens in a new tab where it is navigation. A typed `>` prefix limits to commands
 | `lab.open` | Open lab: <name> | per lab |
 | `lab.validate` | Validate current lab | Editor only |
 | `lab.save` | Save lab | Editor only |
-| `eval.quick` | Quick eval… | dialog 4.3.5 |
+| `eval.quick` | Quick eval… | dialog 4.3.2 |
 | `job.open` | Open job: <title> | per recent job |
 | `job.cancel` | Cancel current job… | on a job page, running |
 | `job.copyCommand` | Copy job command | on a job page |
+| `job.rerunFailed` | Re-run failed models… | on a job or run root page with failures; opens the Run dialog |
+| `lab.insert` | Insert snippet… | Editor only; opens the Insert menu |
 | `results.open` | Open results: <lab> | per run root |
 | `results.compare` | Compare two runs… | compare page |
 | `results.export` | Export report… | run root page |
@@ -1236,6 +1394,11 @@ Required wording (do not paraphrase):
 | Fake cloud | "Cloud calls return fixtures. Nothing is created or billed." |
 | Secrets | "Studio never shows or stores secret values. Set them in the shell you start `decider-lab ui` from." |
 | Estimate caveat (aws) | "Approximate on-demand list price (us-east-1, table dated <date>). Your bill may differ." |
+| Paid API models | "Each row is a billed request to this provider. Studio does not estimate token cost." |
+| Keep machine | "No cap: the machine keeps billing <rate> after the run until you destroy it in Compute." |
+| Idle instance | "No Studio job is using this machine. It bills until you destroy it." |
+| Not same rows | "These models were not scored on the same rows. Their Intelligence values are not directly comparable; use Vs baseline or Compare, which pair rows." |
+| Cost rate | "Cost rate (est.)": an hourly rate, never called "spend" or "cost so far" unless it is `cost_so_far_usd` (then "≈ $0.12 so far (estimate)") |
 
 Never write: "score" or "rank" for Intelligence without "proxy"; "JevBench score"; "accuracy"
 for Intelligence; "significant" (say "the CI excludes 0"); "safe" about spending; "AI".
@@ -1255,16 +1418,16 @@ the one in the lab; the download was discarded." Details: `sha256 mismatch: expe
 |---|---|
 | `init DIR --template` | Labs > New lab |
 | `doctor` | Compute > Local; Overview onboarding step 1 |
-| `run lab.yaml [--on …] [flags]` | Lab > Run dialog → job `run` |
+| `run lab.yaml [--on …] [--out] [--only] [--limit] [flags]` | Lab > Run dialog → job `run` (Run root = `--out`) |
 | `compute offers/ls/down --on vast\|aws` | Compute > vast.ai / AWS |
-| `eval --model/--serve …` | Quick eval dialog → job `eval` |
+| `eval --model/--serve … [--out]` | Quick eval dialog → job `eval` |
 | `compare A B --split` | Results > Compare two runs |
-| `calibrate RUN` | Results > Calibration > Calibrate → job `calibrate` |
+| `calibrate RUN [--out]` | Results > Calibration > Calibrate → job `calibrate` |
 | `report ROOT` | Results > Rebuild report |
 | `suites [--build --out]` | Data > Suites > Inspect / Save as JSONL |
 | `data from-csv` | Data > Upload CSV |
 | `data generate` | Data > Generate |
-| `data check` / `data stats` | Data > Files (validity column) / Inspect |
+| `data check` / `data stats` | Data > Suites > Workspace files (validity column) / Inspect |
 | `data split` | Data > Split |
 | `data leakcheck [--drop-to]` | Data > Leakcheck |
 | `pull SOURCE [flags]` | Models > Pull → job `pull` |
@@ -1283,14 +1446,14 @@ e2e specs; changing one is a breaking change.
 | area | ids |
 |---|---|
 | shell | `nav-overview`, `nav-labs`, `nav-jobs`, `nav-results`, `nav-models`, `nav-data`, `nav-compute`, `nav-settings`, `topbar-palette`, `topbar-jobs-badge`, `topbar-theme`, `fake-cloud-pill`, `palette-input`, `palette-item-<commandId>` |
-| overview | `kpi-labs`, `kpi-runs`, `kpi-best`, `kpi-jobs`, `kpi-spend`, `recent-results`, `recent-row-<model>-<suite>`, `onboarding`, `onboarding-step-<1..4>`, `quick-eval` |
-| labs | `labs-table`, `lab-row-<name>`, `lab-new`, `lab-template-<eval\|finetune>`, `lab-name`, `lab-dir`, `lab-create`, `lab-tab-<summary\|editor\|runs>`, `lab-editor`, `lab-problems`, `lab-save`, `lab-run`, `lab-status` |
-| run dialog | `run-backend-<local\|ssh\|aws\|vast>`, `run-field-<name>`, `run-estimate`, `run-blocker`, `run-confirm-input`, `run-confirm-phrase`, `run-command`, `run-start` |
-| jobs | `jobs-table`, `job-row-<id>`, `job-status`, `job-stage-<name>`, `job-progress-<model>-<suite>`, `job-cancel`, `job-tab-<progress\|logs\|telemetry\|command>`, `log-viewer`, `log-search`, `log-follow`, `telemetry-chart-<metric>` |
-| results | `runroot-card-<lab>`, `suite-chip-<suite>`, `scores-toggle-<raw\|cal\|both>`, `leaderboard`, `leaderboard-row-<model>`, `proxy-notice`, `forest-plot`, `family-heatmap`, `reliability-<model>`, `latency-chart`, `jevbench-panel-<model>`, `rows-table`, `row-detail`, `compare-a`, `compare-b`, `compare-result`, `export-menu`, `provenance` |
+| overview | `kpi-labs`, `kpi-runs`, `kpi-top`, `kpi-jobs`, `kpi-spend`, `recent-results`, `recent-row-<model>-<suite>`, `onboarding`, `onboarding-step-<1..4>`, `quick-eval` |
+| labs | `labs-table`, `lab-row-<name>`, `lab-new`, `lab-template-<eval\|finetune>`, `lab-name`, `lab-dir`, `lab-create`, `lab-tab-<summary\|editor\|runs>`, `lab-editor`, `lab-problems`, `lab-save`, `lab-run`, `lab-status`, `lab-insert`, `lab-secret-mask`, `lab-fix-secret`, `lab-paid-badge-<model>` |
+| run dialog | `run-backend-<local\|ssh\|aws\|vast>`, `run-field-<name>`, `run-estimate`, `run-blocker`, `run-paid-models`, `run-resume`, `run-root-new`, `run-confirm-input`, `run-confirm-phrase`, `run-command`, `run-start` |
+| jobs | `jobs-table`, `job-row-<id>`, `job-status`, `job-stage-<name>`, `job-progress-<model>-<suite>`, `job-cancel`, `job-tab-<progress\|logs\|telemetry\|command>`, `log-viewer`, `log-search`, `log-follow`, `telemetry-chart-<metric>`, `job-failures`, `job-rerun-failed`, `job-lost-callout`, `job-queue-pos` |
+| results | `runroot-card-<lab>`, `suite-chip-<suite>`, `scores-toggle-<raw\|cal\|both>`, `leaderboard`, `leaderboard-row-<model>`, `proxy-notice`, `forest-plot`, `family-heatmap`, `reliability-<model>`, `latency-chart`, `jevbench-panel-<model>`, `rows-table`, `row-detail`, `compare-a`, `compare-b`, `compare-result`, `export-menu`, `provenance`, `same-rows-warning`, `leaderboard-select-<model>`, `leaderboard-compare`, `results-delete`, `calibration-delta-<model>` |
 | models | `models-table`, `model-row-<ref8>`, `pull-open`, `pull-source`, `pull-inspect`, `pull-require-pinned`, `pull-start`, `model-delete-<ref8>` |
 | data | `suite-card-<name>`, `suite-inspect-<name>`, `suite-stats`, `csv-drop`, `csv-preview`, `csv-convert`, `generate-form`, `generate-run`, `split-form`, `leakcheck-form`, `leakcheck-result` |
-| compute | `doctor-list`, `doctor-row-<item>`, `vast-credit`, `vast-instance-<id>`, `vast-destroy-<id>`, `vast-offers`, `aws-profile`, `aws-region`, `aws-identity`, `aws-quota-<g\|p\|standard>`, `aws-instance-<id>`, `aws-terminate-<id>`, `bedrock-models`, `ssh-host-<name>`, `ssh-add`, `ssh-test-<name>` |
+| compute | `doctor-list`, `doctor-row-<item>`, `vast-credit`, `vast-instance-<id>`, `vast-destroy-<id>`, `vast-offers`, `aws-profile`, `aws-region`, `aws-identity`, `aws-quota-<g\|p\|standard>`, `aws-instance-<id>`, `aws-terminate-<id>`, `vast-idle-<id>`, `aws-idle-<id>`, `bedrock-models`, `ssh-host-<name>`, `ssh-add`, `ssh-test-<name>` |
 | shared | `confirm-dialog`, `confirm-input`, `confirm-submit`, `toast`, `error-state`, `empty-state` |
 
 E2e specs (each clicks the real controls, against a real server started on a temp workspace with
@@ -1320,3 +1483,11 @@ E2e specs (each clicks the real controls, against a real server started on a tem
    test ok, test `.invalid` host fails.
 9. `settings.spec.ts`: env shows names with set/unset and never a value (test sets a known secret
    value in the server env and asserts it appears nowhere in the DOM or network responses).
+10. `safety.spec.ts` (owned by C; uses D's pages through the UI only): a lab with a literal
+    `api_key: sk-…` shows `••••` in the editor, the literal is absent from every network
+    response, saving keeps it on disk, and "Move to environment variable" rewrites the line; a
+    local run of a lab with a `bedrock` model requires `call paid apis`; a vast run with Keep
+    checked requires the `… and keep the machine` phrase; a fake-cloud vast instance with no job
+    shows `idle · billing` on Compute and in the Overview cost card; a job file marked running
+    with a dead pid becomes `lost` after a server restart and shows the callout; a leaderboard
+    with a `--limit` run shows the same-rows warning; the Overview never shows a `CIBar`.

@@ -39,7 +39,14 @@ decider-lab ui [--workspace DIR] [--port 8765] [--host 127.0.0.1] [--no-browser]
 - Needs the extra: `pip install 'decider-lab[ui]'` (fastapi, uvicorn, python-multipart, sse-starlette
   optional). Without it, `decider-lab ui` exits 2 naming the extra.
 - State directory: `<workspace>/.decider-lab-studio/` (created mode 700): `settings.json`,
-  `ssh_hosts.json`, `jobs/<job_id>/{job.json,log.txt,telemetry.jsonl,progress.json}`.
+  `ssh_hosts.json`, `jobs/<job_id>/{job.json,log.txt,telemetry.jsonl,progress.json}`. Studio
+  adds the directory to the workspace's `.gitignore` if one exists (never creates one), so job
+  logs are not committed by accident.
+- Shutdown: on SIGINT/SIGTERM with active jobs, the server stops accepting requests, cancels
+  every active job exactly as `POST /api/jobs/:id/cancel` does (SIGTERM to the process group; the
+  CLI releases remote machines), waits up to 60 s, and prints a line per job. A second SIGINT
+  exits at once and prints `WARNING: these machines may still be running: vast 9876543, aws
+  i-0abc…` (ids parsed from the job logs). Jobs never outlive the server silently.
 
 ### 1.2 Auth
 
@@ -52,6 +59,11 @@ decider-lab ui [--workspace DIR] [--port 8765] [--host 127.0.0.1] [--no-browser]
   {"error":{"code":"unauthorized",…}}`.
 - SSE (`EventSource`) uses the cookie (same-origin).
 - Static assets (`/assets/*`, `/index.html`) are served without auth (they contain no data).
+- Security headers on every response: `Content-Security-Policy: default-src 'self'; img-src 'self'
+  data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'`,
+  `Referrer-Policy: no-referrer` (so the token in the first URL never leaks through a Referer),
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`.
+- The token is always in the redaction set (2.5), whatever its environment variable name.
 - CSRF/DNS-rebinding: requests whose `Host` header is not `127.0.0.1:<port>`, `localhost:<port>`
   or `[::1]:<port>` → `421 misdirected`. Non-GET requests must carry `X-Studio: 1` (the SPA
   client always sends it) and, if `Origin` is present, it must equal the server origin; else
@@ -138,6 +150,9 @@ a phrase the server defines. The server is the enforcement point; the UI only co
 | delete a cached model | first 8 chars of its ref (commit or sha256), or of `model_key` when it has neither |
 | delete a lab file | the lab name |
 | delete a finished job record | `delete` |
+| delete a run root's results | `delete <lab name>` (the run root's title for an eval root) |
+| run (any backend) whose selected models include a paid API model (`bedrock`, `strands`, or `chat` with a non-loopback `url`) | `call paid apis` (local/ssh); on vast/aws the cloud phrase is used and the estimate lists the paid models |
+| remote run on `vast` / `aws` with `keep: true` | `spend <cap> on <backend> and keep the machine` |
 
 Wrong or missing → `409 confirm_mismatch` with `detail.expected_hint` (e.g. "type the instance
 id"; the phrase itself is returned for runs only, by the estimate endpoint). Estimates are not
@@ -146,22 +161,40 @@ phrase against it, so changing options after confirming fails safely.
 
 ### 2.5 Secrets
 
-- The API never returns a secret value. Environment variables are reported as
-  `{"name":"HF_TOKEN","set":true}`. AWS credentials are referenced by profile name or by the
-  `*_env` variable names in a lab; key material is never read by Studio code (boto3 reads it).
+- The API never returns a secret value, including values the person typed into their own
+  files. Environment variables are reported as `{"name":"HF_TOKEN","set":true}`. AWS credentials
+  are referenced by profile name or by the `*_env` variable names in a lab; key material is
+  never read by Studio code (boto3 reads it). SSH private keys are referenced by path; Studio
+  only checks that the path exists.
 - Lab YAML validation flags literal secrets (keys `api_key`, `aws_access_key_id`,
   `aws_secret_access_key`, `aws_session_token`, `token`, `password`, `secret`; values matching
   `AKIA[0-9A-Z]{16}`, `ASIA[0-9A-Z]{16}`, `hf_[A-Za-z0-9]{30,}`, `sk-[A-Za-z0-9]{20,}`) as
-  problems with code `secret_literal`. The lab file content is still returned by `GET
-  /api/labs/:id` (it is the person's file), but values at those keys are replaced by `"••••"` in
-  `summary` and never logged.
+  problems with code `secret_literal`.
+- Masked secrets in lab YAML: `GET /api/labs/:id`, `PUT` responses and every other response that
+  carries lab text replace each secret literal's value with the placeholder `"••••"` (the line
+  and column are kept, so problems still point at it) and report `secrets_masked: n`. On `PUT`,
+  a `"••••"` value at a key path that held a secret in the file on disk is restored from disk
+  before writing; a placeholder at any other path → `422 secret_placeholder_unknown` (nothing is
+  written). `POST /api/labs/validate` treats the placeholder as a present secret literal. The
+  ETag is computed over the real file bytes. `POST /api/labs/:id/fix-secret` (5) moves a
+  literal to an `*_env` reference. Literal values are never logged.
 - Redaction (`redact.py`, owned by A, used by every route that returns file content or logs):
   replaces with `••••` (a) the values of every environment variable whose name matches
   `(?i)(token|secret|key|password|credential|session)` and whose value is ≥ 8 chars, (b) the
   patterns above, (c) presigned URL query strings (`X-Amz-Signature=…`, `X-Amz-Credential=…`,
-  `X-Amz-Security-Token=…` → value `••••`), (d) `Authorization:` header values. Applied to job
-  logs before they are written to `log.txt` and before SSE, to `run.json`/`source.json`/`lab.json`
-  content, to doctor details and to server logs.
+  `X-Amz-Security-Token=…` → value `••••`), (d) `Authorization:` header values, (e) URL user
+  info (`https://user:pass@host` → `https://••••@host`, also in `git+https://` pip specs such as
+  `strands_decider`), (f) the Studio token. Applied to job logs before they are written to
+  `log.txt` and before SSE; to every string field of `job.json` (`title`, `argv`, `command`,
+  `options`, `failures`, stage `detail`, `progress.runs[].message`); to
+  `run.json`/`source.json`/`lab.json`/`calibration.json` content; to `error` strings from
+  `predictions.jsonl` (rows, row detail, predictions, CSV exports); to cached model `source`
+  strings (`GET /api/models`, `inspect.normalized`); to doctor details; and to server logs.
+- Server-side search (`GET /api/jobs/:id/log?q=`, row search `q`) runs on redacted text only, so
+  a query cannot probe whether a secret value occurs in a log.
+- Model sources that carry a credential (presigned query strings, URL user info) are refused by
+  `inspect` and `pull` with `422 credential_in_source`: they would otherwise be persisted in
+  `source.json`, cache metadata and provenance.
 - Job `env` lists names only; values pass from the server's environment to the subprocess and
   are never part of a request or response.
 
@@ -172,7 +205,9 @@ When the server's environment has `DECIDER_LAB_FAKE_CLOUD=1`:
 - `GET /api/meta` → `fake_cloud: true`.
 - `/api/compute/vast/*` and `/api/compute/aws/*` read and mutate in-memory fixtures loaded from
   `src/decider_lab/ui/fakes/{vast,aws}.json` at start (destroy/terminate remove items until the
-  server restarts). No `vastai` or boto3 call is made.
+  server restarts). No `vastai` or boto3 call is made. The fixtures include one running vast
+  instance and one running aws instance that no job owns (`idle: true`), so the idle-machine
+  warnings are testable.
 - `POST /api/jobs` with `kind:"run"` and `backend` `vast`/`aws` runs a simulator: it emits the
   remote stage log lines with short sleeps (`check` 0.2 s, `acquire` 1 s, `copy` 0.3 s,
   `bootstrap` 1 s), then runs the real `decider-lab run <lab> --on local` subprocess (prefixed
@@ -185,6 +220,10 @@ When the server's environment has `DECIDER_LAB_FAKE_CLOUD=1`:
 - `s3://` model pulls and `inspect` are allowed to return `backend_unavailable` in fake mode;
   tests use `https://127.0.0.1:<port>` fixture servers or local directories instead.
 - Fake-mode cost estimates use the fixtures' offers and the static AWS price table.
+- Paid API models (`bedrock`, `strands`, remote `chat`) still need the `call paid apis` phrase in
+  fake mode (the rule is about the lab, not the backend); e2e tests use a lab whose `bedrock`
+  model points at a loopback stub via the SDK's test hooks, or only assert the confirmation
+  gate and cancel before any request.
 
 ---
 
@@ -224,7 +263,8 @@ When the server's environment has `DECIDER_LAB_FAKE_CLOUD=1`:
     "best": {"root_id": "…", "lab": "first-lab", "model": "v19", "suite": "synthetic",
              "intelligence": 61.4, "ci95": [57.9, 64.8]},
     "jobs_active": 2, "jobs_active_remote": 1,
-    "cloud": {"instances": 1, "usd_per_hour": 0.612, "known": true}
+    "cloud": {"instances": 1, "idle_instances": 1, "usd_per_hour": 0.612, "known": true,
+              "errors": []}
   },
   "active_jobs": [ /* JobSummary, max 5 */ ],
   "recent_results": [
@@ -237,11 +277,19 @@ When the server's environment has `DECIDER_LAB_FAKE_CLOUD=1`:
 }
 ```
 
-- `best`: highest `intelligence` among non-calibrated, non-baseline runs on suites other than
-  `smoke`, ties broken by most recent; `null` if none.
+- `best`: highest `intelligence` among non-calibrated, non-baseline runs **on one suite**: the
+  base suite (not `smoke`) of the most recently finished scored run; ties broken by most
+  recent; `null` if none. Extra fields: `"tied_with": 2` (other runs on that suite whose CI
+  overlaps the top run's CI) and `"suite_rows": 540`. The UI labels it "Top on <suite>", never
+  "best" across suites.
 - `cloud.known: false` when no cloud backend is usable (then `usd_per_hour: null`). Cloud reads
-  are cached 60 s and time out at 5 s so the overview never waits on a cloud.
-- `recent_results`: 10 most recent model/suite runs by `run.json.finished_utc` (raw only).
+  are cached 60 s and time out at 5 s so the overview never waits on a cloud. A provider whose
+  read failed is listed in `errors` (`["vast: timeout"]`) and makes `usd_per_hour` `null`
+  rather than a partial sum. `idle_instances`: running decider-lab instances that no active
+  Studio job owns (see 10).
+- `recent_results`: 10 most recent model/suite runs by `run.json.finished_utc` (raw only), plus
+  failed models from `lab.json.failures` as items with `"status": "failed"`, `"message"` and null
+  numbers (every item has `status: "ok" | "failed"`).
 - `doctor_seen` becomes true after any `GET /api/compute/doctor`.
 
 ---
@@ -272,6 +320,9 @@ Body: any subset of the fields above. Response: the full settings. Validation: `
 workspace-relative path. → `422 bad_request` otherwise.
 
 ### `GET /api/settings/env`
+
+Query: `names` (optional, comma list of `^[A-Z_][A-Z0-9_]{0,127}$` names) adds those names to the
+result (the Run dialog's "+ add name" chips). Only `set` is reported for them.
 
 ```json
 {
@@ -314,6 +365,7 @@ type LabSummary = {
   models: { name: string; kind: ModelKind; spec_text: string;          // e.g. "hf://StrandsAgents/…@bb282d7", "majority"
             source_kind?: "hf" | "s3" | "url" | "local"; pinned?: boolean;
             needs_gpu?: boolean; vision?: boolean; is_baseline: boolean; jevbench: boolean;
+            paid_api: boolean;                // bedrock, strands, or chat with a non-loopback url: billed per request
             env_refs: string[]; warnings: string[] }[];
   suites: { ref: string; label: string; rows_estimate: number | null; has_splits: boolean | null }[];
   finetune: { name: string; from: string | null; base_model: string | null; train: string[]; steps: number | null }[];
@@ -379,7 +431,8 @@ Body: `{"path": "experiments/q3.yaml"}` (workspace-relative). Returns the list i
 ```json
 {
   "lab_id": "…", "name": "first-lab", "path": "labs/first/lab.yaml", "dir": "labs/first",
-  "yaml": "name: first-lab\nworkers: 8\n…",
+  "yaml": "name: first-lab\nworkers: 8\n…",     // secret literals masked as "••••" (2.5)
+  "secrets_masked": 0,
   "etag": "\"sha256:5b1c…\"",
   "modified_at": "2026-10-06T08:01:12Z",
   "valid": true,
@@ -418,7 +471,18 @@ invalid (DESIGN 4.2.2). Writes atomically (temp file + rename), preserving the f
 
 `200`: same shape as `GET /api/labs/:lab_id` with the new `etag`.
 Errors: `409 etag_mismatch` with `detail: {"current_etag": "…", "modified_at": "…"}`;
-`428 precondition_required` without `If-Match`; `413 too_large` above 1 MB.
+`428 precondition_required` without `If-Match`; `413 too_large` above 1 MB;
+`422 secret_placeholder_unknown` with `detail.paths` (2.5). A `409 job_active` is not raised:
+saving while the lab runs is allowed (the running job already read the file); the response
+adds `"warning": "A run of this lab is in progress; it uses the version it started with."`.
+
+### `POST /api/labs/:lab_id/fix-secret`
+
+Body: `{"path": "models.nova.api_key", "env_name": "NOVA_API_KEY"}` + `If-Match`. Replaces the
+literal at `path` with `<key>_env: NAME` (`api_key` → `api_key_env`), writes atomically, and
+returns the lab (as `GET`). The secret value is dropped from the file and never returned.
+Errors: `404 not_found` (no secret literal at `path`), `422 bad_request` (env name pattern
+`^[A-Z_][A-Z0-9_]{0,127}$`), `409 etag_mismatch`.
 
 ### `DELETE /api/labs/:lab_id`
 
@@ -444,6 +508,7 @@ Body (`RunOptions`, same as the `run` job minus `confirm`):
   "keep": false,
   "fast_kernels": false,
   "strands_decider": null,
+  "out": null,
   "options": {"gpu": "A100_SXM4", "num_gpus": 1, "max_price": 0.8, "disk_gb": 80, "offer": null, "ssh_key": "~/.ssh/id_ed25519"}
 }
 ```
@@ -454,6 +519,9 @@ Body (`RunOptions`, same as the `run` job minus `confirm`):
 - `aws`: `instance_type`, `region`, `profile`, `disk_gb`.
 - `vast`: `gpu`, `num_gpus`, `max_price`, `disk_gb`, `offer`, `ssh_key`.
 Missing options fall back to the lab's `compute.<backend>` section, then provider defaults.
+`out`: workspace-relative run root (CLI `--out`); null = the lab's default
+(`<lab dir>/runs/<name>`, or under Settings `runs_dir`). `strands_decider` is redacted (2.5) in
+every response because pip specs can carry URL credentials.
 
 `200`:
 ```json
@@ -463,6 +531,8 @@ Missing options fall back to the lab's `compute.<backend>` section, then provide
   "blockers": [],
   "warnings": ["v19 runs with `serve` and needs a GPU: the A100_SXM4 has 80 GB"],
   "plan": {"models": ["v19", "majority"], "suites": ["smoke", "synthetic"], "runs": 4, "calibrated_runs_max": 2, "requests_estimate": 1980},
+  "resume": {"root": "labs/first/runs/first-lab", "exists": true, "rows_reused": 412},
+  "paid_models": [],                       // e.g. [{"model": "nova", "kind": "bedrock", "provider": "AWS Bedrock us-east-1", "requests_estimate": 990}]
   "cost": {
     "billable": true,
     "rate_usd_per_hour": 0.612,
@@ -492,7 +562,15 @@ Rules:
   smaller than the type's vCPUs (names the quota code), boto3 missing.
 - Always: lab invalid → blocker "lab.yaml has n errors"; `only` names unknown models → blocker;
   `env` names that are not set → warning "HF_TOKEN is not set; it will not be passed".
-- `confirm_phrase` uses `f"spend {cap_usd:.2f} on {backend}"`.
+- `confirm_phrase` uses `f"spend {cap_usd:.2f} on {backend}"`, plus `" and keep the machine"`
+  when `keep` is true. With `keep`, `cost.cap_usd` still states the run's cap but `cost.note`
+  says the machine bills past it, and a warning is added.
+- `paid_models` non-empty on `local`/`ssh` → `confirm_phrase: "call paid apis"` (cost stays
+  `billable: false` for compute, but the phrase is required). On aws/vast the cloud phrase covers
+  both and `paid_models` is listed in the estimate.
+- `resume.rows_reused`: lines without `error` in existing `predictions.jsonl` files of the
+  selected models under the target root (local backend only; remote runs copy no results up,
+  so `null`).
 
 Errors: `404 not_found`. Cloud lookups that fail become blockers, not HTTP errors.
 
@@ -502,7 +580,9 @@ Errors: `404 not_found`. Cloud lookups that fail become blockers, not HTTP error
 
 A job is one `decider-lab` CLI subprocess (or a fake-cloud simulator wrapping one), started by
 the server, tracked in `<state_dir>/jobs/<job_id>/`. Jobs survive page reloads; on server
-restart, jobs whose process is gone become `lost` (their logs and results remain).
+restart, jobs whose process is gone become `lost` (their logs and results remain; `machine_id`
+and `failures: ["Studio stopped while this job ran; a remote machine may still be running"]`
+are kept so the UI can point at Compute).
 
 ### 6.1 Types
 
@@ -517,12 +597,15 @@ type RunProgress = { model: string; suite: string;               // suite may en
                      done: number; total: number | null; errors: number;
                      rows_per_s: number | null;                  // over the last 30 s
                      intelligence: number | null; ci95: [number | null, number | null] | null;
-                     accuracy: number | null; message: string | null };
+                     accuracy: number | null; message: string | null;
+                     reused: number | null };                    // rows resumed from an earlier call
 
 type JobProgress = { fraction: number | null;                     // 0..1, null when unknown
                      label: string;                                // "4/6 runs", "412 MB / 4.1 GB", "90/90 rows"
                      runs: RunProgress[];                          // run/eval/jevbench/calibrate
                      bytes: { done: number; total: number | null } | null;   // pull
+                     finetune: { model: string; step: number | null; total_steps: number | null;
+                                 loss: number | null; status: "pending" | "running" | "done" | "failed" }[] | null;
                      machine: { provider: "vast" | "aws" | "ssh"; id: string | null; target: string | null;
                                 gpu: string | null; usd_per_hour: number | null; cost_so_far_usd: number | null } | null };
 
@@ -530,7 +613,10 @@ type JobSummary = { job_id: string; kind: JobKind; title: string; status: JobSta
                     backend: "local" | "ssh" | "aws" | "vast"; lab_id: string | null;
                     created_at: string; started_at: string | null; ended_at: string | null;
                     duration_s: number | null; progress: { fraction: number | null; label: string };
-                    failures: number; root_id: string | null };
+                    failure_count: number; root_id: string | null;
+                    queue_position: number | null;          // 1-based while queued, else null
+                    cost_so_far_usd: number | null;         // remote runs only; an estimate
+                    machine_id: string | null };            // vast/aws id once parsed (also kept for lost jobs)
 
 type Job = JobSummary & {
   argv: string[];                 // exactly what was executed (redacted)
@@ -539,7 +625,7 @@ type Job = JobSummary & {
   exit_code: number | null;
   stages: Stage[];
   progress: JobProgress;
-  failures: string[];             // from lab.json, or the last error line
+  failures: string[];             // from lab.json, or the last error line (JobSummary has only failure_count)
   result: Record<string, unknown> | null;   // kind-specific, see 6.3
   log: { lines: number; bytes: number };
   telemetry: { source: "local-nvidia-smi" | "remote-ssh" | "simulated" | "none"; reason: string | null };
@@ -551,7 +637,7 @@ Stage lists per kind (names are stable; `label` is display text):
 
 | kind / backend | stages |
 |---|---|
-| run / local | `prepare`, `run`, `report` |
+| run / local | `prepare`, `run`, `report` (`prepare`, `finetune`, `run`, `report` when the lab has `finetune:` entries) |
 | run / ssh, aws, vast | `check`, `acquire`, `copy`, `bootstrap`, `run`, `fetch`, `release` |
 | eval | `prepare`, `run` |
 | pull | `resolve`, `download`, `verify`, `extract`, `done` |
@@ -585,6 +671,12 @@ the number with `"error": non-null`, which gives `rows_per_s` and `errors` betwe
 every-50-rows progress lines. Totals for runs not yet started come from the lab summary's
 `rows_estimate` (or `null`).
 
+Fine-tune progress (local runs): the training output goes to
+`<root>/_finetune/<name>/train.log`, not stdout, so the server tails that file every 2 s,
+appends its lines to the job log prefixed `[train <name>] ` (redacted), and fills
+`progress.finetune` from lines that carry a step and a loss (best-effort; unknown formats leave
+`step`/`loss` null). Telemetry samples add `train_loss` when known.
+
 Exit status mapping: exit 0 → `succeeded`; non-zero with `lab.json.failures` non-empty and at
 least one scored run → `partial`; other non-zero → `failed`; terminated by cancel → `cancelled`.
 
@@ -616,7 +708,7 @@ Body by kind:
 {"kind": "jevbench", "url": "http://127.0.0.1:8000", "label": "v19", "out": null}  // default runs/jevbench/<label>-<utc stamp>
 
 // calibrate (CLI: decider-lab calibrate)
-{"kind": "calibrate", "root_id": "…", "model": "v19", "suite": "synthetic"}
+{"kind": "calibrate", "root_id": "…", "model": "v19", "suite": "synthetic", "out": null}  // default <root>/<model>/<suite>+cal
 
 // suite_build (builds/caches a built-in suite, e.g. heldout)
 {"kind": "suite_build", "suite": "heldout"}
@@ -651,7 +743,8 @@ server environment (so `env` names resolve) plus `PYTHONUNBUFFERED=1`.
   "job_id": "j_3f9a1c22be07", "kind": "run", "title": "run first-lab on vast.ai", "status": "running",
   "backend": "vast", "lab_id": "bGFicy9maXJzdC9sYWIueWFtbA",
   "created_at": "2026-10-06T10:42:00Z", "started_at": "2026-10-06T10:42:00Z", "ended_at": null,
-  "duration_s": 728.1, "failures": 0, "root_id": null,
+  "duration_s": 728.1, "failure_count": 0, "root_id": null,
+  "queue_position": null, "cost_so_far_usd": 0.12, "machine_id": "9876543",
   "progress": {
     "fraction": 0.58, "label": "4/6 runs",
     "runs": [
@@ -889,7 +982,9 @@ Query: `suite` (required, base name), `scores` (`raw|cal|both`, default `raw`).
      "nll": null, "ece": null, "noul_in_band": null, "errors": null, "n": null, "latency_s": null,
      "tie_group": null, "temperatures": null, "message": "nova: ThrottlingException: Rate exceeded"}
   ],
-  "domain": [-5.0, 69.8]
+  "domain": [-5.0, 69.8],
+  "same_rows": {"consistent": true, "n_by_model": {"v19": 540, "heuristic": 540, "majority": 540},
+                "sha256_by_model": {"v19": "3be1…"}, "limited": []}
 }
 ```
 
@@ -899,6 +994,12 @@ Query: `suite` (required, base name), `scores` (`raw|cal|both`, default `raw`).
 - `status: "failed"` rows come from `lab.json.failures` for models with no `scores.json` for
   this suite. `status: "missing"` when the model is in the lab but never ran this suite.
 - `domain`: the shared CIBar axis (DESIGN 7.1).
+- `same_rows.consistent` is false when the ok rows' `n` differ, their `run.json.suite_sha256`
+  differ, or any was run with `--limit` (listed in `limited`, from `lab.json`/`run.json`). The UI
+  then shows the "not same rows" warning (DESIGN 4.4.1); ranks and `tie_group` are still
+  computed but carry no pairing.
+- Only `intelligence` carries a CI here (the SDK bootstraps only it per run); paired CIs for
+  accuracy and NLL come from `vs-baseline` and `compare`.
 - For `suite=jevbench` use `GET …/jevbench` instead (`400 use_jevbench_endpoint`).
 
 ### `GET /api/runs/:root_id/runs/:model/:suite`
@@ -1068,11 +1169,13 @@ else is listed as `{"src": null, "alt": "image outside the workspace: not shown"
 ```json
 {"items": [{"model": "v19", "suite": "synthetic", "suite_sha256": "3be1…", "answerer": {…}, "source": {…},
             "host": "gpu-box", "platform": "…", "python": "3.11.9", "gpu": "…", "decider_lab": "0.1.0",
-            "finished_utc": "…", "wall_s": 96.2, "workers": 8, "calibration": null}],
+            "finished_utc": "…", "wall_s": 96.2, "workers": 8, "limit": null, "calibration": null,
+            "job_id": "j_3f9a1c22be07"}],
  "same_rows": {"synthetic": {"consistent": true, "sha256": "3be1…", "mismatched_models": []}}}
 ```
 
-All redacted.
+All redacted. `job_id`: the Studio job whose run root this is, when a job record still exists
+(else null).
 
 ### `GET /api/compare`
 
@@ -1087,14 +1190,44 @@ Query: `a` and `b` as `<root_id>:<model>:<suite>` (each part percent-encoded), `
  "intelligence": {"diff": 61.4, "ci95": [57.2, 65.3], "verdict": "better"},
  "accuracy": {"diff": 27.8, "ci95": [24.1, 31.4], "verdict": "better"},
  "nll": {"diff": -0.181, "ci95": [-0.205, -0.158], "verdict": "better"},
- "bootstrap": 2000}
+ "bootstrap": 2000, "has_splits": true, "notes": []}
 ```
 
-Same filtering as `cmd_compare`. Errors: `422 no_shared_rows`, `404 not_found`.
+Same filtering as `cmd_compare` (rows with no split are kept for `test` and `dev`). `has_splits`
+false → `notes: ["These runs have no dev/test split: all rows are compared."]`; differing
+`suite_sha256` with overlapping ids → a note "Only the n shared rows are compared."; a `--limit`
+run → a note naming it. Errors: `422 no_shared_rows`, `404 not_found`.
 
 ### `GET /api/runs/refs`
 
-All model/suite runs for the RunPicker: `{"items": [{"root_id","lab","model","suite","calibrated","n","intelligence","finished_at"}]}`.
+All model/suite runs for the RunPicker: `{"items": [{"root_id","lab","model","suite","calibrated","n","intelligence","ci95","limit","has_splits","finished_at"}]}`.
+Route order: `/api/runs/refs` is registered before `/api/runs/:root_id` (a root id never equals
+`refs`, since ids are base64url of paths containing `/` or longer than 4 chars, but the router
+must not depend on that).
+
+### `GET /api/runs/:root_id/calibration`
+
+Query: `suite` (base name). For each model with a `+cal` run:
+
+```json
+{"suite": "synthetic", "items": [{"model": "v19", "temperatures": {"noul": 1.42, "choice": 1.1, "score": 0.93},
+  "fit_split": "dev", "fit_rows": 360, "score_split": "test",
+  "before": {"intelligence": 61.4, "nll": 0.512, "ece": 0.041}, "after": {"intelligence": 61.9, "nll": 0.488, "ece": 0.019},
+  "delta": {"n_paired": 540, "intelligence": {"diff": 0.5, "ci95": [-0.8, 1.9], "verdict": "unclear"},
+            "nll": {"diff": -0.024, "ci95": [-0.031, -0.017], "verdict": "better"}}}],
+ "eligible": [{"model": "heuristic", "dev_rows_by_kind": {"noul": 120, "choice": 120, "score": 120}}],
+ "ineligible": [{"model": "majority", "reason": "too few dev rows (12 of noul; needs 30)"}]}
+```
+
+`delta` is `metrics.compare(+cal, raw)` on the scored split (paired; 2,000 resamples), cached by
+file mtimes. `eligible` lists runs that can be calibrated now (the UI's Calibrate buttons).
+
+### `DELETE /api/runs/:root_id`
+
+Body `{"confirm": "delete first-lab"}`. Removes the run root directory (only if it is inside the
+workspace and contains `lab.json`, `report.json` or `<model>/<suite>/scores.json`; never a lab
+file, data file or cache). `200 {"deleted": true, "freed_mb": 41.2}`. Errors: `409
+confirm_mismatch`, `409 job_active` (a job's run root is this directory), `404 not_found`.
 
 ### `POST /api/runs/:root_id/report` — rebuild REPORT.md (CLI `report`)
 
@@ -1107,7 +1240,8 @@ synchronously (it is fast). `200 {"report_md": "…/REPORT.md", "report_json": "
 |---|---|
 | `GET /api/runs/:root_id/report.md` | `text/markdown` REPORT.md (attachment) |
 | `GET /api/runs/:root_id/report.json` | `application/json` report.json (attachment) |
-| `GET /api/runs/:root_id/leaderboard.csv?suite=&scores=raw\|cal\|both` | CSV: `model,variant,intelligence,ci_lo,ci_hi,accuracy,nll,ece,noul_in_band,errors,n,latency_p50,latency_p95,status,message` |
+| `GET /api/runs/:root_id/leaderboard.csv?suite=&scores=raw\|cal\|both` | CSV: `model,variant,intelligence_local_proxy,ci95_lo,ci95_hi,accuracy,nll,ece,noul_in_band,errors,n,latency_p50,latency_p95,status,message` (failed rows included; the column name carries the proxy caveat because CSV has no room for a note) |
+| `GET /api/runs/:root_id/leaderboard.md?suite=&scores=` | Markdown table with the same columns plus the `proxy_note` line and "95% CI" in the header (the "Copy as Markdown" action) |
 | `GET /api/runs/:root_id/runs/:model/:suite/predictions.csv` | see above |
 
 `404 not_found` if the file does not exist (e.g. no report yet).
@@ -1123,7 +1257,7 @@ synchronously (it is fast). `200 {"report_md": "…/REPORT.md", "report_json": "
  "items": [{"model_key": "9a1f03be2c7d4e11", "source": "hf://StrandsAgents/strands-decider-2B-hobson-v19",
             "kind": "hf", "ref": "bb282d786bc251fd4e3068de3ada9ddbb38127cd", "ref_kind": "commit",
             "pinned": true, "size_gb": 4.12, "dir": "…/models/9a1f03be2c7d4e11", "pulled_at": "2026-10-04T09:00:00Z",
-            "used_by_labs": ["first-lab"]}],
+            "used_by_labs": ["first-lab"], "in_use_by_job": null}],
  "hf_cache_note": "Hugging Face snapshots live in the HF cache."}
 ```
 
@@ -1146,7 +1280,9 @@ Body: `{"source": "hf://StrandsAgents/strands-decider-2B-hobson-v19@main", "revi
 ```
 
 No network. Classification uses `sources.kind_of`. `needs.profile` true for s3. Local paths
-must be inside the workspace or the home directory and exist.
+must be inside the workspace or the home directory and exist. A source with URL user info or
+presigned query parameters → problem `credential_in_source` (error), and `normalized` is
+redacted. `cached: true` adds `"cached_info": {"model_key", "pulled_at", "ref"}`.
 
 ### Pull
 
@@ -1265,7 +1401,9 @@ Body `{"train_file_id": "…", "against": ["smoke", "file:…"], "drop_to": "dat
 
 ### `GET /api/files/raw`
 
-Query `file_id`. Images only (see 7, rows). Other types → `415 unsupported_media`.
+Query `file_id`. Images only (see 7, rows): png, jpg/jpeg, gif, webp, sniffed by magic bytes,
+served with the sniffed `Content-Type`; SVG and HTML are never served (script risk). Other types
+→ `415 unsupported_media`.
 
 ---
 
@@ -1294,7 +1432,7 @@ fixture rows (no CLI/boto3 calls).
 
 #### `GET /api/compute/vast/status`
 
-`{"fake": false, "cli": true, "api_key": true, "credit_usd": 25.4, "error": null}` —
+`{"fake": false, "cli": true, "api_key": true, "credit_usd": 25.4, "as_of": "2026-10-06T10:41:00Z", "error": null}` —
 `api_key` is whether `vastai show user` works; the key itself is never read.
 
 #### `GET /api/compute/vast/offers`
@@ -1316,10 +1454,13 @@ Same query as `vast.offers()`; sorted by `dph_total`; max 50 items.
 ```json
 {"fake": false, "items": [{"id": 9876543, "label": "decider-lab:first-lab", "status": "running",
                            "gpu": "1x A100_SXM4", "dph_total": 0.612, "started_at": "2026-10-06T10:42:30Z",
-                           "uptime_s": 840, "ssh": "root@ssh4.vast.ai:22311", "job_id": "j_3f9a1c22be07"}]}
+                           "uptime_s": 840, "ssh": "root@ssh4.vast.ai:22311", "job_id": "j_3f9a1c22be07",
+                           "idle": false, "cost_so_far_usd": 0.14}]}
 ```
 
-`job_id` when an active Studio job acquired it (matched by id from the job's log).
+`job_id` when an active Studio job acquired it (matched by id from the job's log). `idle`: true
+when no active Studio job owns it (it may belong to a CLI run outside Studio, or be left over by
+`--keep`, a `lost` job or a failed release). `cost_so_far_usd = dph_total × uptime` (estimate).
 
 #### `POST /api/compute/vast/instances/:id/destroy`
 
@@ -1345,6 +1486,8 @@ parsed from `~/.aws/config` and `~/.aws/credentials` section headers only (no va
 #### `GET /api/compute/aws/identity`
 
 `{"fake": false, "profile": "heisenberg", "region": "us-east-1", "account": "123456789012", "arn": "arn:aws:sts::123456789012:assumed-role/Admin/session", "ok": true, "error": null}`
+(The account id is not a secret and is returned in full; the UI masks it by default for screen
+sharing. No access key id, secret or session token is ever read or returned.)
 On failure: `200` with `ok:false`, `error: "ExpiredToken: the SSO session has expired; run aws sso login --profile heisenberg"`.
 
 #### `GET /api/compute/aws/quotas`
@@ -1368,8 +1511,10 @@ from the static table (no AWS call).
 
 #### `GET /api/compute/aws/instances`
 
-`{"fake": false, "items": [{"id": "i-0abc123def4567890", "type": "g6e.xlarge", "state": "running", "lab": "first-lab", "launched_at": "…", "uptime_s": 840, "usd_per_hour": 1.861, "public_ip": "3.91.x.x", "job_id": null}]}`
-(`aws.tagged_instances`; `public_ip` shown masked in the last octet.)
+`{"fake": false, "items": [{"id": "i-0abc123def4567890", "type": "g6e.xlarge", "state": "running", "lab": "first-lab", "launched_at": "…", "uptime_s": 840, "usd_per_hour": 1.861, "public_ip_masked": "3.91.x.x", "job_id": null, "idle": true}]}`
+(`aws.tagged_instances`; the server masks the last two octets of the public IP and never
+returns the full address; `usd_per_hour` is the static list price, `null` for unknown types;
+`idle` as for vast.)
 
 #### `POST /api/compute/aws/instances/:id/terminate`
 
@@ -1425,7 +1570,7 @@ export type Backend = "local" | "ssh" | "aws" | "vast";
 
 export type RunOptions = {
   backend: Backend; only: string[] | null; limit: number | null; max_hours: number;
-  env: string[]; keep: boolean; fast_kernels: boolean; strands_decider: string | null;
+  env: string[]; keep: boolean; fast_kernels: boolean; strands_decider: string | null; out: string | null;
   options: Record<string, string | number | null>;
 };
 export type Estimate = {
@@ -1433,10 +1578,13 @@ export type Estimate = {
   plan: { models: string[]; suites: string[]; runs: number; calibrated_runs_max: number; requests_estimate: number | null };
   cost: { billable: boolean; rate_usd_per_hour: number | null; rate_source: string | null; cap_usd_per_hour: number | null;
           max_hours: number; cap_usd: number | null; credit_usd: number | null; note: string | null };
+  resume: { root: string; exists: boolean; rows_reused: number | null };
+  paid_models: { model: string; kind: string; provider: string; requests_estimate: number | null }[];
   confirm_phrase: string | null; command: string;
 };
 export type TelemetrySample = { ts: string; gpus: { index: number; util_pct: number | null; mem_used_gb: number | null;
-                                temp_c: number | null; power_w: number | null }[]; rows_per_s: number | null; errors_total: number | null };
+                                temp_c: number | null; power_w: number | null }[]; rows_per_s: number | null; errors_total: number | null;
+                                train_loss?: number | null };
 export type DoctorCheck = { status: "ok" | "warn" | "info"; item: string; detail: string };
 export type Verdict = "better" | "worse" | "unclear";
 export type Diff = { diff: number | null; ci95: CI; verdict?: Verdict };
@@ -1476,6 +1624,8 @@ export type Diff = { diff: number | null; ci95: CI; verdict?: Verdict };
 | `suite_unavailable` | 422 | suite needs a missing extra | `{"extra"}` |
 | `rows_invalid` | 422 | JSONL/CSV rows fail `rows.check` | `{"problem"}` or `{"errors"}` |
 | `upload_not_found` | 404 | unknown/expired upload_id | — |
+| `secret_placeholder_unknown` | 422 | PUT lab with `••••` at a path that held no secret on disk | `{"paths"}` |
+| `credential_in_source` | 422 | model source with URL user info or presigned query | — |
 | `no_shared_rows` | 422 | compare runs with no common ids | — |
 | `use_jevbench_endpoint` | 400 | leaderboard with suite=jevbench | — |
 | `unsupported_media` | 415 | raw file not an image | — |
@@ -1495,7 +1645,9 @@ export type Diff = { diff: number | null; ci95: CI; verdict?: Verdict };
 `finetune_no_train`, `finetune_train_missing`, `bad_compute_backend`, `unknown_compute_option`
 (warning), `env_not_set` (warning), `secret_literal`, `calibrate_no_splits` (warning),
 `jevbench_needs_systemone` (error when a jevbench model is not `serve`/`url`/`finetuned`),
-`workers_invalid`.
+`workers_invalid`, `paid_api_model` (warning on each `bedrock`/`strands`/remote
+`chat` model: "billed per request"), `credential_in_source` (error: a `serve`/`url`/`chat`
+source with URL user info or a presigned query).
 
 ---
 
@@ -1516,6 +1668,7 @@ export type Diff = { diff: number | null; ci95: CI; verdict?: Verdict };
 | GET, PUT, DELETE | `/api/labs/:lab_id` | 5 |
 | POST | `/api/labs/validate` | 5 |
 | POST | `/api/labs/:lab_id/duplicate` | 5 |
+| POST | `/api/labs/:lab_id/fix-secret` | 5 |
 | POST | `/api/labs/:lab_id/estimate` | 5 |
 | GET, POST | `/api/jobs` | 6 |
 | GET, DELETE | `/api/jobs/:job_id` | 6 |
@@ -1527,7 +1680,9 @@ export type Diff = { diff: number | null; ci95: CI; verdict?: Verdict };
 | GET (SSE) | `/api/events` | 6 |
 | GET | `/api/runs` | 7 |
 | GET | `/api/runs/refs` | 7 |
-| GET | `/api/runs/:root_id` | 7 |
+| GET, DELETE | `/api/runs/:root_id` | 7 |
+| GET | `/api/runs/:root_id/calibration` | 7 |
+| GET | `/api/runs/:root_id/leaderboard.md` | 7 |
 | GET | `/api/runs/:root_id/leaderboard` | 7 |
 | GET | `/api/runs/:root_id/leaderboard.csv` | 7 |
 | GET | `/api/runs/:root_id/vs-baseline` | 7 |
@@ -1579,6 +1734,10 @@ export type Diff = { diff: number | null; ci95: CI; verdict?: Verdict };
 
 Backend test expectations (each row of this index has at least one test in `tests/ui/`, with
 `DECIDER_LAB_FAKE_CLOUD=1`, a temp workspace and `DECIDER_LAB_CACHE` pointed at a temp dir):
-auth (401 without token, 421 bad Host, 403 without `X-Studio` on POST), every typed-confirmation
-endpoint rejects a wrong phrase, no response body in the whole suite contains the value of a
-secret env var set by the test fixture, and no test touches the network except loopback.
+auth (401 without token, 421 bad Host, 403 without `X-Studio` on POST), security headers present,
+every typed-confirmation endpoint rejects a wrong phrase (including `call paid apis` and the
+`keep` suffix), no response body in the whole suite contains the value of a secret env var set
+by the test fixture or a secret literal written into a fixture lab (`sk-test…` in `api_key:`,
+`https://user:pw@…` in a `url:` model, an `X-Amz-Signature` in a log line), `PUT` with masked
+placeholders preserves the on-disk secret, log `q` search for a secret value returns no match,
+and no test touches the network except loopback.
