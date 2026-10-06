@@ -86,33 +86,11 @@ def run_lab(path: str, *, only: list[str] | None = None, limit: int | None = Non
         if only and name not in only:
             continue
         os.makedirs(os.path.join(root, name), exist_ok=True)
-        workers = int((spec.get("workers") if isinstance(spec, dict) else None) or lab.get("workers", 4))
-        with answerer(name, spec, lab, root) as adapter:
-            for sname, rows, params in suites:
-                rows = runner.select(rows, limit=limit)
-                has_splits = any(r.get("split") for r in rows)
-                d = os.path.join(root, name, sname)
-                s = runner.run(adapter, rows, d, suite=sname, suite_params=params, workers=workers, model=name,
-                               score_split="test" if has_splits else None)
-                print(f"[decider-lab] {name} / {sname}: Intelligence {s['intelligence']} "
-                      f"(95% CI {s.get('intelligence_ci95')}), accuracy {s['accuracy']}%, errors {s['errors']}",
-                      flush=True)
-                if lab.get("calibrate") and has_splits:
-                    info = calibrate.calibrate_run(d)
-                    print(f"[decider-lab] {name} / {sname}+cal: T={info['temperatures']} "
-                          f"Intelligence {info['before']['intelligence']} -> {info['after']['intelligence']}",
-                          flush=True)
-            if name in (lab.get("jevbench") or []):
-                url = getattr(adapter, "url", None)
-                if not url:
-                    raise ValueError(f"jevbench needs a System One model; {name} is {adapter.name}")
-                try:
-                    jb = jevbench.run(url, os.path.join(root, name, "jevbench"), label=name)
-                    print(f"[decider-lab] {name} / jevbench-public: proxy Intelligence {jb['intelligence_proxy']} "
-                          f"({jb['n_correct']}/231 right)", flush=True)
-                except Exception as e:  # the suites above are already scored; keep them
-                    failures.append(f"{name} / jevbench: {type(e).__name__}: {e}")
-                    print(f"[decider-lab] {failures[-1]}", flush=True)
+        try:
+            run_model(name, spec, lab, root, suites, limit, failures)
+        except Exception as e:  # one model failing must not lose the others' results
+            failures.append(f"{name}: {type(e).__name__}: {e}")
+            print(f"[decider-lab] FAILED {failures[-1]}", flush=True)
     rep = report.write(root, baseline=lab.get("baseline"), title=lab["name"])
     with open(os.path.join(root, "lab.json"), "w", encoding="utf-8") as fh:
         json.dump({k: v for k, v in lab.items() if not k.startswith("_")}
@@ -122,3 +100,35 @@ def run_lab(path: str, *, only: list[str] | None = None, limit: int | None = Non
     if failures:
         raise RuntimeError("finished with failures:\n  " + "\n  ".join(failures))
     return root
+
+
+def run_model(name: str, spec: Any, lab: dict[str, Any], root: str, suites: list[Any], limit: int | None,
+              failures: list[str]) -> None:
+    """Every suite (and JevBench, when asked) for one model."""
+    workers = int((spec.get("workers") if isinstance(spec, dict) else None) or lab.get("workers", 4))
+    with answerer(name, spec, lab, root) as adapter:
+        for sname, rows, params in suites:
+            rows = runner.select(rows, limit=limit)
+            has_splits = any(r.get("split") for r in rows)
+            d = os.path.join(root, name, sname)
+            s = runner.run(adapter, rows, d, suite=sname, suite_params=params, workers=workers, model=name,
+                           score_split="test" if has_splits else None)
+            print(f"[decider-lab] {name} / {sname}: Intelligence {s['intelligence']} "
+                  f"(95% CI {s.get('intelligence_ci95')}), accuracy {s['accuracy']}%, errors {s['errors']}",
+                  flush=True)
+            if lab.get("calibrate") and has_splits:
+                info = calibrate.calibrate_run(d)
+                print(f"[decider-lab] {name} / {sname}+cal: T={info['temperatures']} "
+                      f"Intelligence {info['before']['intelligence']} -> {info['after']['intelligence']}",
+                      flush=True)
+        if name in (lab.get("jevbench") or []):
+            url = getattr(adapter, "url", None)
+            if not url:
+                raise ValueError(f"jevbench needs a System One model; {name} is {adapter.name}")
+            try:
+                jb = jevbench.run(url, os.path.join(root, name, "jevbench"), label=name)
+                print(f"[decider-lab] {name} / jevbench-public: proxy Intelligence {jb['intelligence_proxy']} "
+                      f"({jb['n_correct']}/231 right)", flush=True)
+            except Exception as e:  # the suites above are already scored; keep them
+                failures.append(f"{name} / jevbench: {type(e).__name__}: {e}")
+                print(f"[decider-lab] {failures[-1]}", flush=True)

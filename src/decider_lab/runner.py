@@ -61,7 +61,7 @@ def record(row: Row, probs: list[float] | None, latency: float | None, error: st
 
 def run(adapter: Adapter, rows: list[Row], out: str, *, suite: str = "suite", suite_params: dict[str, Any] | None = None,
         workers: int = 4, model: str = "model", score_split: str | None = None, resume: bool = True,
-        progress: bool = True) -> dict[str, Any]:
+        progress: bool = True, fail_fast: int = 20) -> dict[str, Any]:
     """Answer `rows` with `adapter` into `out`; returns the scores."""
     os.makedirs(out, exist_ok=True)
     pred_path = os.path.join(out, "predictions.jsonl")
@@ -92,8 +92,17 @@ def run(adapter: Adapter, rows: list[Row], out: str, *, suite: str = "suite", su
     with open(pred_path, "a" if resume else "w", encoding="utf-8") as fh, \
             ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         futures = [pool.submit(one, r) for r in todo]
+        streak = 0
         for f in as_completed(futures):
             rec = f.result()
+            # the first `fail_fast` answers all failing means the model cannot answer at all:
+            # stop now, instead of recording a whole suite of errors as scores
+            streak = streak + 1 if rec["error"] else -10**9
+            if fail_fast and streak >= fail_fast:
+                for g in futures:
+                    g.cancel()
+                raise RuntimeError(f"{model} / {suite}: the first {fail_fast} rows all failed; last error: "
+                                   f"{rec['error']}")
             with lock:
                 fh.write(json.dumps(rec) + "\n")
                 fh.flush()

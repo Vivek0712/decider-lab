@@ -16,10 +16,14 @@ VENV=${VENV:-/root/venv}
 log() { echo "[bootstrap $(date -u +%H:%M:%SZ)] $*"; }
 
 rm -f /root/BOOTSTRAP_OK
-if ! command -v git >/dev/null || ! command -v rsync >/dev/null; then
-  log "apt: git rsync"
-  (apt-get -qq update && apt-get -qq install -y git rsync) >/dev/null 2>&1 || log "WARN: apt failed; continuing"
+# gcc: Triton compiles the linear-attention kernels on the first request. Without a C compiler
+# the server loads, /health says ok, and every answer is an HTTP 500 ("Failed to find C compiler").
+if ! command -v git >/dev/null || ! command -v rsync >/dev/null || ! command -v gcc >/dev/null; then
+  log "apt: git rsync gcc"
+  (apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -y git rsync build-essential) \
+    >/dev/null 2>&1 || log "WARN: apt failed"
 fi
+command -v gcc >/dev/null || { log "FAIL: no C compiler (gcc); Triton kernels cannot compile"; exit 1; }
 
 # ---- 1. the driver's CUDA version decides the torch wheel ---------------------------------
 DRIVER_CUDA=$(nvidia-smi 2>/dev/null | grep -oE "CUDA Version: [0-9]+\.[0-9]+" | awk '{print $3}' || true)

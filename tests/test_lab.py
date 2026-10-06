@@ -137,3 +137,43 @@ def test_gpu_run_refuses_without_credit(monkeypatch, tmp_path):
 
 def test_package_root_is_the_checkout():
     assert os.path.exists(os.path.join(vast.package_root(), "pyproject.toml"))
+
+
+# ---- failing models fail fast and alone ------------------------------------------------------
+
+def test_warm_up_raises_with_log_tail(fake_server, tmp_path):
+    from decider_lab.serve import warm_up
+
+    url, handler = fake_server
+    log = tmp_path / "server.log"
+    log.write_text("RuntimeError: Failed to find C compiler\n")
+    handler.fail_next = 1
+    with pytest.raises(RuntimeError, match="C compiler"):
+        warm_up(url, timeout=10, log_path=str(log))
+    assert warm_up(url, timeout=10) >= 0
+
+
+def test_runner_stops_when_the_first_rows_all_fail(fake_server, tmp_path):
+    from decider_lab import runner
+    from decider_lab.adapters import SystemOneAdapter
+    from decider_lab.suites import load_suite
+
+    url, handler = fake_server
+    handler.fail_next = 10**6
+    _, rows, _ = load_suite("smoke")
+    with pytest.raises(RuntimeError, match="first 5 rows all failed"):
+        runner.run(SystemOneAdapter(url, retries=0), rows, str(tmp_path / "r"), workers=1, fail_fast=5,
+                   progress=False)
+    assert len(handler.calls) < 30
+
+
+def test_one_failing_model_does_not_lose_the_others(fake_server, tmp_path):
+    url, handler = fake_server
+    p = write_lab(tmp_path, "http://127.0.0.1:9")  # nothing listens: every row fails
+    lab = yaml.safe_load(p.read_text())
+    lab["models"]["fake"]["retries"] = 0
+    p.write_text(yaml.safe_dump(lab))
+    assert main(["run", str(p)]) == 2
+    root = tmp_path / "runs" / "t"
+    assert (root / "majority" / "smoke" / "scores.json").exists()
+    assert "fake" in json.loads((root / "lab.json").read_text())["failures"][0]

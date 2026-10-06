@@ -38,6 +38,35 @@ def get_health(url: str, timeout: float = 5) -> dict[str, Any] | None:
         return None
 
 
+WARM_UP = {"state": "The sky is blue today.",
+           "questions": {"q": {"type": "noul", "instructions": "Is this text about the weather?"}}}
+
+
+def tail(path: str | None, n: int = 25) -> str:
+    if not path or not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return "".join(fh.readlines()[-n:])
+
+
+def warm_up(url: str, *, timeout: float = 600, log_path: str | None = None) -> float:
+    """One real request; returns its latency or raises with the server log's tail."""
+    req = urllib.request.Request(url + "/v1/systemone", data=json.dumps(WARM_UP).encode(),
+                                 headers={"Content-Type": "application/json"})
+    t = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            answer = json.loads(r.read())["answers"]["q"]
+        if "noul" not in answer:
+            raise RuntimeError(f"warm-up answer has no noul: {answer}")
+    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
+        detail = e.read().decode("utf-8", "replace")[:300] if isinstance(e, urllib.error.HTTPError) else str(e)
+        raise RuntimeError(f"the server is up but cannot answer a question ({detail}). Server log tail:\n"
+                           + tail(log_path)) from e
+    print(f"[decider-lab] warm-up answer in {time.time() - t:.1f}s", flush=True)
+    return time.time() - t
+
+
 def serve_command(checkpoint: str, port: int, *, vision: bool = False, device: str | None = None,
                   model_name: str | None = None, cli: str | None = None, extra: list[str] | None = None) -> list[str]:
     exe = cli or shutil.which("strands-decider") or os.path.join(os.path.dirname(sys.executable), "strands-decider")
@@ -83,6 +112,9 @@ def served(checkpoint: str, *, port: int | None = None, vision: bool = False, de
             health = get_health(url)
         if vision and not health.get("vision"):
             raise RuntimeError(f"asked for --vision but /health reports {health.get('vision')!r}")
+        # /health only says the weights loaded. Ask one real question before measuring: kernels
+        # compile on the first request, and a server that cannot answer must fail here, loudly.
+        warm_up(url, timeout=max(60.0, timeout / 2), log_path=log_path)
         print(f"[decider-lab] /health ok after {time.time() - t0:.0f}s: model={health.get('model')} "
               f"device={health.get('device')} vision={health.get('vision')}", flush=True)
         yield url, health

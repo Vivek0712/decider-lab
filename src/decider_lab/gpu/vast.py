@@ -189,16 +189,22 @@ def run_remote(lab_path: str, *, gpu: str = "RTX_4090", num_gpus: int = 1, max_p
                  " > /root/bootstrap.log 2>&1 || (tail -40 /root/bootstrap.log; exit 1)", timeout=3600)
         log("[gpu] bootstrap ok")
         envs = " ".join(f"{k}={shlex.quote(os.environ[k])}" for k in (env or []) if k in os.environ)
-        launch = (f"cd /root/lab && {envs} nohup bash -c '. /root/venv/bin/activate && decider-lab run "
-                  f"{shlex.quote(lab_file)} {run_args}; echo $? > /root/lab/EXIT' > /root/lab/run.log 2>&1 &")
-        host.ssh(launch)
+        # setsid + </dev/null: otherwise ssh keeps the session open until the job ends, nothing
+        # streams, and the --max-hours deadline cannot fire.
+        launch = (f"cd /root/lab && rm -f /root/lab/EXIT && {envs} setsid nohup bash -c '. /root/venv/bin/activate && "
+                  f"decider-lab run {shlex.quote(lab_file)} {run_args}; echo $? > /root/lab/EXIT' "
+                  "> /root/lab/run.log 2>&1 < /dev/null &")
+        host.ssh(launch, timeout=60)
         shown, code = 0, None
         while code is None:
             if time.time() > deadline:
                 raise TimeoutError(f"--max-hours {max_hours} reached; stopping")
             time.sleep(20)
-            out = host.ssh(f"tail -n +{shown + 1} /root/lab/run.log; echo __END__; cat /root/lab/EXIT 2>/dev/null || true",
-                           capture=True, check=False)
+            try:
+                out = host.ssh(f"tail -n +{shown + 1} /root/lab/run.log; echo __END__; cat /root/lab/EXIT 2>/dev/null "
+                               "|| true", capture=True, check=False, timeout=90)
+            except subprocess.TimeoutExpired:
+                continue  # a slow poll is not a failed run; the deadline above still applies
             body, _, tail = out.partition("__END__\n")
             for line in body.splitlines():
                 log(f"  | {line}")
