@@ -41,6 +41,6 @@ Training on a family makes that family *seen*. Report it as what training on the
 
 ## The recipe
 
-The defaults are the released 2B recipe (Qwen3.5-2B-Base, pointer head, LoRA r16 on attention, MLP and the recurrent layers' projections, frozen-KL 0.3, option shuffling, ordinal smoothing), sized for one GPU, with a smaller learning rate when continuing a trained checkpoint (5e-5 adapter, 5e-4 head). Any TrainConfig field can be set under `config:`; an unknown field is refused before the GPU starts.
+The defaults are the released 2B recipe (Qwen3.5-2B-Base, pointer head, LoRA r16 on attention, MLP and the recurrent layers' projections, frozen-KL 0.3, option shuffling, ordinal smoothing), sized for one GPU, with a smaller learning rate when continuing a trained checkpoint (5e-5 adapter, 5e-4 head). Any TrainConfig field can be set under `config:`; an unknown field is refused before training starts.
 
 A 2B continue-fine-tune fits a 24 GB GPU. Roughly: 150 steps of batch 16 on short rows take a few minutes on an A100.

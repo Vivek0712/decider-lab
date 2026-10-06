@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06140E"/><stop offset="0.6" stop-color="#0B2A1C"/><stop offset="1" stop-color="#103D29"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.45" r="0.45">
+      <stop offset="0" stop-color="#2FDC85" stop-opacity="0.35"/><stop offset="1" stop-color="#2FDC85" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bar" x1="0" x2="1"><stop offset="0" stop-color="#2FDC85"/><stop offset="1" stop-color="#7CF0B4"/></linearGradient>
+  </defs>
+  <rect width="1200" height="400" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="400" rx="24" fill="url(#glow)"/>
+  <g stroke="#2FDC85" stroke-opacity="0.08">
+    <path d="M0 80H1200M0 160H1200M0 240H1200M0 320H1200"/><path d="M150 0V400M300 0V400M450 0V400M600 0V400M750 0V400M900 0V400M1050 0V400"/>
+  </g>
+  <text x="64" y="92" fill="#2FDC85" font-size="18" font-weight="700" letter-spacing="4">STRANDS DECIDER · AND ANY DECISION MODEL</text>
+  <text x="62" y="168" fill="#F2F6F3" font-size="72" font-weight="800" letter-spacing="-2">decider-lab</text>
+  <text x="64" y="218" fill="#BFD3C8" font-size="24">Evaluate · calibrate · compare · fine-tune.</text>
+  <text x="64" y="252" fill="#BFD3C8" font-size="24">One YAML file. Your laptop, your server, AWS, or a rented GPU.</text>
+  <g font-size="16" font-weight="700">
+    <rect x="64" y="292" width="150" height="40" rx="20" fill="#2FDC85"/><text x="139" y="318" text-anchor="middle" fill="#06140E">lab.yaml</text>
+    <text x="232" y="318" fill="#2FDC85" font-size="22">→</text>
+    <rect x="262" y="292" width="170" height="40" rx="20" fill="none" stroke="#2FDC85" stroke-width="2"/><text x="347" y="318" text-anchor="middle" fill="#F2F6F3">decider-lab run</text>
+    <text x="450" y="318" fill="#2FDC85" font-size="22">→</text>
+    <rect x="480" y="292" width="150" height="40" rx="20" fill="none" stroke="#2FDC85" stroke-width="2"/><text x="555" y="318" text-anchor="middle" fill="#F2F6F3">REPORT.md</text>
+  </g>
+  <!-- mini report card: real numbers from the verified A100 run -->
+  <g transform="translate(760,64)">
+    <rect width="380" height="272" rx="18" fill="#0A1A12" stroke="#2FDC85" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="24" y="38" fill="#F2F6F3" font-size="17" font-weight="700">REPORT.md · synthetic · test split</text>
+    <text x="24" y="62" fill="#7FA392" font-size="13">delta Intelligence vs v19, same 540 rows, 95% CI</text>
+    <g font-size="15">
+      <text x="24" y="104" fill="#F2F6F3" font-weight="700">fine-tuned</text>
+      <rect x="128" y="91" width="168" height="18" rx="9" fill="url(#bar)"/>
+      <text x="356" y="104" fill="#2FDC85" font-weight="700" text-anchor="end">+23.4</text>
+      <line x1="280" y1="100" x2="368" y2="100" stroke="#F2F6F3" stroke-opacity="0" />
+      <text x="24" y="148" fill="#BFD3C8">majority</text>
+      <rect x="128" y="135" width="141" height="18" rx="9" fill="#4F7D66"/>
+      <text x="356" y="148" fill="#BFD3C8" text-anchor="end">+19.7</text>
+      <text x="24" y="192" fill="#BFD3C8">v21</text>
+      <rect x="128" y="179" width="32" height="18" rx="9" fill="#4F7D66"/>
+      <text x="356" y="192" fill="#BFD3C8" text-anchor="end">+4.5</text>
+      <text x="24" y="236" fill="#BFD3C8">v19</text>
+      <line x1="128" y1="222" x2="128" y2="242" stroke="#BFD3C8" stroke-width="2"/>
+      <text x="356" y="236" fill="#BFD3C8" text-anchor="end">0</text>
+    </g>
+    <text x="24" y="262" fill="#7FA392" font-size="12">JevBench v1.5 rules, local proxy · A100 run, 537 s</text>
+  </g>
+</svg>

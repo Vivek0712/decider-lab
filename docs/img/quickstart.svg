@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" width="1200" height="430" font-family="SFMono-Regular, Menlo, Consolas, monospace">
+  <rect width="1200" height="430" rx="16" fill="#0E1411"/>
+  <rect width="1200" height="38" rx="16" fill="#1C2621"/><rect y="22" width="1200" height="16" fill="#1C2621"/>
+  <circle cx="24" cy="19" r="7" fill="#FF5F56"/><circle cx="46" cy="19" r="7" fill="#FFBD2E"/><circle cx="68" cy="19" r="7" fill="#27C93F"/>
+  <text x="600" y="24" text-anchor="middle" font-size="13" fill="#8FA89A" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">60 seconds, no GPU</text>
+  <g font-size="15">
+    <text x="28" y="76" fill="#2FDC85">$ <tspan fill="#F2F6F3">pip install "decider-lab @ git+https://github.com/Vivek0712/decider-lab"</tspan></text>
+    <text x="28" y="106" fill="#2FDC85">$ <tspan fill="#F2F6F3">decider-lab init my-lab &amp;&amp; cd my-lab</tspan></text>
+    <text x="28" y="130" fill="#8FA89A">created my-lab from the eval template</text>
+    <text x="28" y="160" fill="#2FDC85">$ <tspan fill="#F2F6F3">decider-lab run lab.yaml</tspan></text>
+    <text x="28" y="186" fill="#BFD3C8">[decider-lab] heuristic / synthetic: Intelligence <tspan fill="#2FDC85" font-weight="700">9.5</tspan> (95% CI [3.5, 15.2]), accuracy 30.2%, errors 0</text>
+    <text x="28" y="210" fill="#BFD3C8">[decider-lab] heuristic / synthetic+cal: T={'noul': 20.0, ...} Intelligence 9.5 -&gt; -23.1</text>
+    <text x="28" y="234" fill="#BFD3C8">[decider-lab] majority / synthetic: Intelligence <tspan fill="#2FDC85" font-weight="700">6.7</tspan> (95% CI [1.1, 12.8]), accuracy 32.4%, errors 0</text>
+    <text x="28" y="258" fill="#BFD3C8">[decider-lab] report: runs/first-lab/REPORT.md</text>
+    <text x="28" y="292" fill="#2FDC85">$ <tspan fill="#F2F6F3">decider-lab run lab.yaml --on aws --instance-type c7i.2xlarge</tspan><tspan fill="#8FA89A">  # same lab, EC2 in your account</tspan></text>
+    <text x="28" y="318" fill="#BFD3C8">[aws] c7i.2xlarge i-0... (self-terminates after 75 min); ssh allowed from &lt;your IP&gt; only</text>
+    <text x="28" y="342" fill="#BFD3C8">[aws] bootstrap: torch for this machine, strands-decider[vision], decider-lab</text>
+    <text x="28" y="366" fill="#BFD3C8">  | [decider-lab] warm-up answer in 0.8s</text>
+    <text x="28" y="390" fill="#BFD3C8">[aws] results copied to my-lab/runs <tspan fill="#8FA89A">·</tspan> instance terminated <tspan fill="#8FA89A">·</tspan> security group and key pair deleted</text>
+  </g>
+</svg>

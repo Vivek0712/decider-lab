@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 470" width="1200" height="470" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0B7A45"/></marker>
+    <filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-opacity="0.12"/></filter>
+  </defs>
+  <rect width="1200" height="470" rx="22" fill="#F5F8F4"/>
+  <text x="40" y="52" font-size="24" font-weight="800" fill="#14211A">How it works</text>
+  <text x="40" y="80" font-size="15" fill="#4A5A50">Every model answers every suite. Every answer is a probability per option. Every comparison is paired.</text>
+
+  <!-- column 1: models -->
+  <text x="40" y="126" font-size="13" font-weight="700" fill="#0B7A45" letter-spacing="2">MODELS (ADAPTERS)</text>
+  <g font-size="15" filter="url(#s)">
+    <rect x="40" y="140" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="168" fill="#14211A"><tspan font-weight="700">serve</tspan>  a checkpoint or hub id</text>
+    <rect x="40" y="194" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="222" fill="#14211A"><tspan font-weight="700">url</tspan>  any System One server</text>
+    <rect x="40" y="248" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="276" fill="#14211A"><tspan font-weight="700">chat</tspan>  OpenAI-compatible LLM</text>
+    <rect x="40" y="302" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="330" fill="#14211A"><tspan font-weight="700">python</tspan>  your function</text>
+    <rect x="40" y="356" width="250" height="44" rx="12" fill="#fff"/><text x="58" y="384" fill="#14211A"><tspan font-weight="700">baseline</tspan>  the floor to beat</text>
+  </g>
+
+  <!-- column 2: suites -->
+  <text x="330" y="126" font-size="13" font-weight="700" fill="#0B7A45" letter-spacing="2">SUITES (DECISION ROWS)</text>
+  <g font-size="15" filter="url(#s)">
+    <rect x="330" y="140" width="250" height="44" rx="12" fill="#fff"/><text x="348" y="168" fill="#14211A"><tspan font-weight="700">smoke</tspan>  90 rows, seconds</text>
+    <rect x="330" y="194" width="250" height="44" rx="12" fill="#fff"/><text x="348" y="222" fill="#14211A"><tspan font-weight="700">synthetic</tspan>  labels by program</text>
+    <rect x="330" y="248" width="250" height="44" rx="12" fill="#fff"/><text x="348" y="276" fill="#14211A"><tspan font-weight="700">heldout</tspan>  public, pinned</text>
+    <rect x="330" y="302" width="250" height="44" rx="12" fill="#fff"/><text x="348" y="330" fill="#14211A"><tspan font-weight="700">your file</tspan>  JSONL or CSV</text>
+    <rect x="330" y="356" width="250" height="44" rx="12" fill="#fff"/><text x="348" y="384" fill="#14211A"><tspan font-weight="700">JevBench</tspan>  231 public tasks</text>
+  </g>
+
+  <!-- engine -->
+  <text x="310" y="280" text-anchor="middle" font-size="28" font-weight="800" fill="#0B7A45">×</text>
+  <path d="M582 270 L 640 270" stroke="#0B7A45" stroke-width="3" marker-end="url(#a)"/>
+  <g filter="url(#s)">
+    <rect x="645" y="150" width="240" height="240" rx="20" fill="#14211A"/>
+  </g>
+  <text x="765" y="190" text-anchor="middle" font-size="18" font-weight="800" fill="#2FDC85">decider-lab run</text>
+  <g font-size="14" fill="#DCE8E1">
+    <text x="668" y="226">● serve, warm up, verify</text>
+    <text x="668" y="256">● ask every row, resumable</text>
+    <text x="668" y="286">● score: v1.5 rules, NLL, ECE</text>
+    <text x="668" y="316">● calibrate on dev, score test</text>
+    <text x="668" y="346">● paired bootstrap vs baseline</text>
+  </g>
+  <path d="M887 270 L 945 270" stroke="#0B7A45" stroke-width="3" marker-end="url(#a)"/>
+
+  <!-- output -->
+  <text x="950" y="126" font-size="13" font-weight="700" fill="#0B7A45" letter-spacing="2">EVIDENCE</text>
+  <g filter="url(#s)">
+    <rect x="950" y="140" width="210" height="260" rx="14" fill="#fff"/>
+  </g>
+  <text x="968" y="172" font-size="15" font-weight="800" fill="#14211A">REPORT.md</text>
+  <g font-size="12" fill="#4A5A50">
+    <rect x="968" y="186" width="174" height="10" rx="5" fill="#2FDC85"/>
+    <rect x="968" y="204" width="130" height="10" rx="5" fill="#7FBF9C"/>
+    <rect x="968" y="222" width="90" height="10" rx="5" fill="#B7D9C6"/>
+    <text x="968" y="256" font-weight="700" fill="#14211A">per run</text>
+    <text x="968" y="276">predictions.jsonl</text>
+    <text x="968" y="294">scores.json</text>
+    <text x="968" y="312">run.json: who answered,</text>
+    <text x="968" y="328">suite sha256, GPU, host</text>
+    <text x="968" y="352" font-weight="700" fill="#14211A">per lab</text>
+    <text x="968" y="372">report.json, lab.json</text>
+  </g>
+  <text x="40" y="440" font-size="13" fill="#4A5A50">A failed row is scored as a uniform answer and counted, never dropped. A model whose first 20 rows all fail is stopped, and the other models still run.</text>
+</svg>
