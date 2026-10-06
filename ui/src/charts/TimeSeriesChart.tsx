@@ -3,6 +3,10 @@ import { fmtClock } from "@/lib/format";
 import { AXIS, chartColor } from "./palette";
 import { ChartFrame } from "./ChartFrame";
 
+/** Axis ticks that fit the 44 px axis: 1500 -> 1.5k, 2000000 -> 2M. */
+const compact = (v: number) =>
+  Math.abs(v) >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `${+(v / 1e3).toFixed(1)}k` : `${+v.toFixed(2)}`;
+
 export type Series = { key: string; label: string; colorIndex?: number; color?: string; dashed?: boolean };
 
 /**
@@ -50,7 +54,7 @@ export function TimeSeriesChart({
         <LineChart data={data} syncId={syncId} margin={{ top: 6, right: 8, bottom: 0, left: -12 }}>
           <CartesianGrid vertical={false} stroke={AXIS.grid} strokeDasharray="2 3" />
           <XAxis dataKey="ts" tickFormatter={fmtClock} tick={{ fill: AXIS.tick, fontSize: 12 }} stroke={AXIS.line} minTickGap={40} />
-          <YAxis domain={domain} tick={{ fill: AXIS.tick, fontSize: 12 }} stroke={AXIS.line} width={44} allowDecimals />
+          <YAxis domain={domain} tick={{ fill: AXIS.tick, fontSize: 12 }} stroke={AXIS.line} width={44} allowDecimals tickFormatter={compact} />
           <Tooltip
             labelFormatter={(v) => fmtClock(String(v))}
             formatter={(v, name) => [`${v ?? "—"}${unit}`, name]}

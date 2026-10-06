@@ -22,6 +22,7 @@ export function ChartFrame({
   showTable: showTableProp,
   className,
   children,
+  grow,
   "data-testid": testId,
 }: {
   title: ReactNode;
@@ -35,6 +36,9 @@ export function ChartFrame({
   showTable?: boolean;
   className?: string;
   children: ReactNode;
+  /** Let the chart area grow past `height` (charts that draw their own SVG at a computed height).
+   * Leave off for Recharts, whose ResponsiveContainer needs a fixed-height parent. */
+  grow?: boolean;
   "data-testid"?: string;
 }) {
   const [asTable, setAsTable] = useState(!!showTableProp);
@@ -91,7 +95,7 @@ export function ChartFrame({
           </table>
         </div>
       ) : (
-        <div role="img" aria-label={ariaLabel} style={{ minHeight: height }} className="relative w-full">
+        <div role="img" aria-label={ariaLabel} style={grow ? { minHeight: height } : { height }} className="relative w-full">
           {children}
         </div>
       )}

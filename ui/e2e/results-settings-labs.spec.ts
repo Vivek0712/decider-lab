@@ -170,6 +170,11 @@ test.describe("labs to results", () => {
     await expect(page.getByTestId("job-status")).toContainText(/succeeded/i, { timeout: 90_000 });
     await page.getByTestId("job-tab-logs").click();
     await expect(page.getByTestId("log-viewer")).toContainText("decider-lab");
+    // charts must draw, not only render their frame (a 0-height parent once hid every Recharts line)
+    await page.getByTestId("job-tab-telemetry").click();
+    const rowsChart = page.getByTestId("telemetry-chart-rows");
+    await expect(rowsChart.locator("svg.recharts-surface path.recharts-curve").first()).toBeAttached();
+    expect((await rowsChart.locator("svg.recharts-surface").boundingBox())!.height).toBeGreaterThan(100);
     await page.getByTestId("job-tab-progress").click();
     await page.getByTestId("job-result-link").click();
     await expect(page.getByTestId("page-runroot")).toBeVisible();

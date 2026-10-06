@@ -75,6 +75,7 @@ export function IntelligenceBars({ items, domain, title, caption }: { items: Int
   const aria = items.map((i) => `${i.label} ${fmtIntelligence(i.value)}${hasCI(i.ci) ? `, 95% CI ${i.ci[0]} to ${i.ci[1]}` : ""}`).join("; ");
   return (
     <ChartFrame
+      grow
       title={title}
       caption={caption}
       ariaLabel={`Intelligence (local proxy) with 95% CI: ${aria || "no scored models"}`}
@@ -187,6 +188,7 @@ export function ForestPlot({ items, metric, baseline }: { items: ForestItem[]; m
     .join("; ");
   return (
     <ChartFrame
+      grow
       title={`Δ ${metric === "intelligence" ? "Intelligence (local proxy)" : metric === "accuracy" ? "accuracy" : "NLL"} vs ${baseline}`}
       caption={`Paired on the same rows, 95% bootstrap CI (2,000 resamples). Green: CI entirely ${lower ? "below" : "above"} 0 (better); red: worse; grey: the CI includes 0.`}
       ariaLabel={`Paired difference against ${baseline} in ${unit}: ${aria || "no models"}`}
@@ -298,6 +300,7 @@ export function FamilyHeatmap({ families, models, cells, metric }: { families: s
     families.map((f) => `${f}: ${models.map((m) => `${m} ${fmtIntelligence(get(f, m)?.[metric] ?? null)}`).join(", ")}`).join("; ");
   return (
     <ChartFrame
+      grow
       title={metric === "intelligence" ? "Intelligence (local proxy) by family" : "Accuracy % by family"}
       caption="Per-family values have no CI and rest on fewer rows than the suite total (n in each cell). Use them to find where a model fails, not to rank models."
       ariaLabel={aria}
@@ -416,6 +419,7 @@ export function ReliabilityDiagram({
   const height = 8 + plot + 20 + histH + 8;
   return (
     <ChartFrame
+      grow
       title={model}
       caption={caption}
       ariaLabel={`Reliability of ${model} (${kind}): ECE ${ece(raw.ece)}${cal ? `, calibrated ${ece(cal.ece)}` : ""}; ` +
@@ -507,6 +511,7 @@ export function LatencyDotRange({ items }: { items: LatencyItem[] }) {
   const tk = (x.ticks(5) as number[]).slice(0, 7);
   return (
     <ChartFrame
+      grow
       title="Latency per request: p50 to p95"
       caption="Wall-clock per request from this machine, including network and queueing at the lab's workers concurrency."
       ariaLabel={`Latency: ${items.map((i) => `${i.model} p50 ${fmtLatency(i.p50)}, p95 ${fmtLatency(i.p95)}`).join("; ")}`}
@@ -565,6 +570,7 @@ export function LatencyHistogram({ model, bins, color }: { model: string; bins: 
   const failed = bins.reduce((s, b) => s + b.failed, 0);
   return (
     <ChartFrame
+      grow
       title={`Latency histogram · ${model}`}
       caption={`Rows per latency bin${bins.length === 30 ? " (log-spaced when the range is wide)" : ""}; failed rows stacked in red on top.`}
       ariaLabel={`Latency histogram for ${model}: ${bins.reduce((s, b) => s + b.ok, 0)} answered rows, ${failed} failed, from ${fmtLatency(bins[0]?.lo)} to ${fmtLatency(bins[bins.length - 1]?.hi)}`}
