@@ -1,6 +1,6 @@
 """Your own machine over ssh: a workstation, an on-prem GPU server, an EC2 instance you manage.
 
-    compute: {on: ssh, ssh: {host: ubuntu@10.0.0.5, port: 22, key: ~/.ssh/id_ed25519}}
+    compute: {backend: ssh, ssh: {host: ubuntu@10.0.0.5, port: 22, key: ~/.ssh/id_ed25519}}
 
 Nothing is created or destroyed: decider-lab uses a working directory on it
 (~/decider-lab-work by default), installs a venv there, and leaves the machine as it was

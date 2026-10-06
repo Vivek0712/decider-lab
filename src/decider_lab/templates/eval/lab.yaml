@@ -29,7 +29,7 @@ baseline: majority   # every model is compared with this one, row by row
 
 # Where to run: local (default), or a machine with a GPU. See docs/compute.md.
 compute:
-  on: local
+  backend: local
   max_hours: 2
   # ssh:  {host: ubuntu@my-gpu-box, key: ~/.ssh/id_ed25519}
   # aws:  {instance_type: g6e.xlarge, region: us-east-1, profile: default}

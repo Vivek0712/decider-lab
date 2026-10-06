@@ -5,7 +5,7 @@ flow (base.run_on): acquire, copy, bootstrap, run, fetch, release.
 Configured in lab.yaml (or overridden with `decider-lab run lab.yaml --on <backend>`):
 
     compute:
-      on: aws                 # local (default) | ssh | aws | vast
+      backend: aws                 # local (default) | ssh | aws | vast
       max_hours: 2            # hard deadline; the machine is released at the latest then
       strands_decider: "..."  # pip spec installed on the machine (default: pinned GitHub main)
       aws:  {instance_type: g6e.xlarge, region: us-east-1, profile: default}

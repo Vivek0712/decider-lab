@@ -1,7 +1,7 @@
 """AWS EC2: launch an instance for the run, terminate it afterwards.
 
     compute:
-      on: aws
+      backend: aws
       aws: {instance_type: g6e.xlarge, region: us-east-1, profile: my-profile, disk_gb: 150}
 
 What it creates, all tagged `decider-lab=<lab>`, and removes again:

@@ -75,7 +75,7 @@ def test_run_on_keep_skips_release(tmp_path, monkeypatch):
 
 
 def test_compute_config_lab_then_flags(tmp_path):
-    p = lab_file(tmp_path, {"on": "vast", "vast": {"gpu": "RTX_4090", "max_price": 0.5}})
+    p = lab_file(tmp_path, {"backend": "vast", "vast": {"gpu": "RTX_4090", "max_price": 0.5}})
     a = build_parser().parse_args(["run", str(p), "--gpu", "A100_SXM4", "--region", "eu-west-1"])
     on, opts, _ = compute_config(a)
     assert on == "vast" and opts == {"gpu": "A100_SXM4", "max_price": 0.5}  # --region is an aws flag
@@ -187,3 +187,9 @@ def test_aws_family():
 
 def test_compute_cli_rejects_local(capsys):
     assert main(["compute", "ls", "--on", "vast"]) in (0, 2)  # vastai may be absent here
+
+
+def test_yaml_on_key_is_read_despite_yaml_1_1(tmp_path):
+    p = tmp_path / "lab.yaml"
+    p.write_text("name: x\nmodels: {m: uniform}\ncompute:\n  on: aws\n")  # YAML 1.1: `on` -> True
+    assert compute_config(build_parser().parse_args(["run", str(p)]))[0] == "aws"

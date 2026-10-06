@@ -1,10 +1,10 @@
 # Where a lab runs
 
-The same lab file runs on this machine, on a machine you already have, on an AWS instance launched for the run, or on a rented vast.ai GPU. Pick with `compute:` in `lab.yaml`, or override with `--on`:
+The same lab file runs on this machine, on a machine you already have, on an AWS instance launched for the run, or on a rented vast.ai GPU. Pick with `compute.backend` in `lab.yaml`, or override with `--on`:
 
 ```yaml
 compute:
-  on: local            # local (default) | ssh | aws | vast
+  backend: local            # local (default) | ssh | aws | vast
   max_hours: 2         # remote runs: hard deadline, the machine is released by then at the latest
   # strands_decider: "strands-decider[vision,cuda] @ git+https://github.com/<fork>/strands-decider@<commit>"
   # env: [HF_TOKEN]    # variables passed to the remote run only
@@ -14,7 +14,7 @@ compute:
 ```
 
 ```bash
-decider-lab run lab.yaml                                    # wherever compute.on says
+decider-lab run lab.yaml                                    # wherever compute.backend says
 decider-lab run lab.yaml --on local                         # here, whatever the file says
 decider-lab run lab.yaml --on ssh --host ubuntu@10.0.0.5
 decider-lab run lab.yaml --on aws --instance-type g6e.xlarge --profile research

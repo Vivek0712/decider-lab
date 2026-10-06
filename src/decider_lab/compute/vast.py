@@ -1,6 +1,6 @@
 """vast.ai: rent the cheapest matching GPU for the run, destroy it afterwards.
 
-    compute: {on: vast, vast: {gpu: A100_SXM4, max_price: 0.8}}
+    compute: {backend: vast, vast: {gpu: A100_SXM4, max_price: 0.8}}
 
 Needs the `vastai` CLI with an API key (`vastai set api-key ...`) and an ssh key registered in
 your vast.ai account (`ssh_key`, default ~/.ssh/id_ed25519). Instances are labelled

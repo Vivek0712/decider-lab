@@ -59,7 +59,8 @@ def compute_config(a: argparse.Namespace) -> tuple[str, dict, dict]:
 
     with open(a.lab, encoding="utf-8") as fh:
         compute = dict((yaml.safe_load(fh) or {}).get("compute") or {})
-    on = a.on or compute.get("on") or "local"
+    # `backend:`; `on:` also works, though YAML 1.1 reads a bare `on` key as the boolean True
+    on = a.on or compute.get("backend") or compute.get("on") or compute.get(True) or "local"
     opts = dict(compute.get(on) or {})
     for flag, (backend, key) in FLAG_OPTIONS.items():
         val = getattr(a, flag, None)
