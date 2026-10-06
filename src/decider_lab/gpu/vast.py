@@ -146,7 +146,8 @@ def run_remote(lab_path: str, *, gpu: str = "RTX_4090", num_gpus: int = 1, max_p
                max_hours: float = 2.0, disk_gb: int = 80, strands_spec: str | None = None,
                ssh_key: str = "~/.ssh/id_ed25519", env: list[str] | None = None, keep: bool = False,
                run_args: str = "", image: str = DEFAULT_IMAGE, min_gpu_ram_gb: int = 0,
-               fast_kernels: bool = False, boot_timeout: float = 1800, log=print) -> str:
+               fast_kernels: bool = False, boot_timeout: float = 1800, offer_id: int | None = None,
+               log=print) -> str:
     lab_path = os.path.abspath(lab_path)
     lab_dir, lab_file = os.path.dirname(lab_path), os.path.basename(lab_path)
     name = os.path.splitext(lab_file)[0]
@@ -159,6 +160,10 @@ def run_remote(lab_path: str, *, gpu: str = "RTX_4090", num_gpus: int = 1, max_p
     if not found:
         raise RuntimeError(f"no vast.ai offer for {num_gpus}x {gpu} under ${max_price}/h; try another --gpu "
                            "or a higher --max-price (decider-lab gpu offers --gpu ...)")
+    if offer_id is not None:
+        found = [o for o in found if int(o["id"]) == offer_id]
+        if not found:
+            raise RuntimeError(f"offer {offer_id} is not among the matching offers (decider-lab gpu offers ...)")
     offer = found[0]
     log(f"[gpu] renting {num_gpus}x {offer.get('gpu_name')} at ${offer.get('dph_total', 0):.3f}/h "
         f"(offer {offer['id']}, credit ${have:.2f}, cap ${budget:.2f})")

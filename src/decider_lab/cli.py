@@ -199,7 +199,7 @@ def cmd_gpu(a: argparse.Namespace) -> int:
     elif a.gpu_cmd == "run":
         vast.run_remote(a.lab, gpu=a.gpu, num_gpus=a.num_gpus, max_price=a.max_price, max_hours=a.max_hours,
                         disk_gb=a.disk, strands_spec=a.strands_decider, ssh_key=a.ssh_key, env=a.env, keep=a.keep,
-                        run_args=a.run_args, min_gpu_ram_gb=a.min_gpu_ram, fast_kernels=a.fast_kernels, boot_timeout=a.boot_timeout,
+                        run_args=a.run_args, min_gpu_ram_gb=a.min_gpu_ram, fast_kernels=a.fast_kernels, boot_timeout=a.boot_timeout, offer_id=a.offer,
                         log=lambda m: print(m, flush=True))
     return 0
 
@@ -308,6 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
             g2.add_argument("--fast-kernels", action="store_true", help="also build causal-conv1d on the host")
             g2.add_argument("--boot-timeout", type=float, default=1800,
                             help="seconds to wait for the instance to boot and accept ssh (image pull)")
+            g2.add_argument("--offer", type=int, help="rent this offer id (from `gpu offers`) instead of the cheapest")
         g2.add_argument("--gpu", default="RTX_4090")
         g2.add_argument("--num-gpus", type=int, default=1)
         g2.add_argument("--max-price", type=float, default=0.8, help="$/hour")
