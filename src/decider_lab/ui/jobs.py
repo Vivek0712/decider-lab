@@ -128,11 +128,22 @@ def _is_our_runner(pid: int | None, job_dir: str) -> bool:
     """True if pid is alive and is the jobrunner for job_dir (guards against pid reuse)."""
     if not _pid_alive(pid):
         return False
-    try:
-        out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True,
-                             timeout=5).stdout
-    except (OSError, subprocess.SubprocessError):
-        return True  # cannot tell; assume it is ours rather than declaring a live job lost
+    proc = f"/proc/{pid}"
+    if os.path.isdir(proc):  # Linux: no dependency on ps (slim containers have none)
+        try:
+            with open(f"{proc}/stat", encoding="utf-8") as fh:
+                if fh.read().rsplit(")", 1)[-1].split()[0] == "Z":
+                    return False  # a zombie has finished; its exit.json (written first) says how
+            with open(f"{proc}/cmdline", "rb") as fh:
+                out = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+        except OSError:
+            return True  # cannot tell; assume it is ours rather than declaring a live job lost
+    else:
+        try:
+            out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True,
+                                 timeout=5).stdout
+        except (OSError, subprocess.SubprocessError):
+            return True
     return "decider_lab.ui.jobrunner" in out and os.path.basename(job_dir) in out
 
 
