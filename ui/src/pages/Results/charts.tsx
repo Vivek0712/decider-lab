@@ -27,7 +27,10 @@ export function useWidth<T extends HTMLElement>(fallback = 640): [React.RefObjec
   return [ref, w];
 }
 
-const ticks = (lo: number, hi: number, n = 6) => scaleLinear().domain([lo, hi]).nice(n).ticks(n);
+// ticks inside [lo, hi] only: a "nice" domain extends past the data, and the clamped scale would
+// pin those extra ticks to the chart edges on top of their neighbours
+const ticks = (lo: number, hi: number, n = 6) =>
+  scaleLinear().domain([lo, hi]).ticks(n).filter((t) => t >= lo - 1e-9 && t <= hi + 1e-9);
 const hasCI = (ci: CI | null | undefined): ci is [number, number] => !!ci && ci[0] != null && ci[1] != null;
 
 function Whisker({ x0, x1, y, color, cap = 8 }: { x0: number; x1: number; y: number; color: string; cap?: number }) {

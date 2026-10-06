@@ -11,6 +11,7 @@
 </p>
 
 <p align="center">
+  <a href="#%EF%B8%8F-studio-the-whole-lab-in-your-browser">Studio</a> ·
   <a href="#-60-second-start">Start</a> ·
   <a href="#-how-it-works">How it works</a> ·
   <a href="#%EF%B8%8F-run-anywhere">Run anywhere</a> ·
@@ -26,6 +27,17 @@
 **decider-lab** turns "I wonder if this model is better" into a report you can trust, in one command. It is the harness behind a long series of [Strands Decider](https://github.com/strands-labs/strands-decider) experiments, packaged so you never rebuild it: serve a model, ask it thousands of typed questions with known answers, score the answers with the JevBench rules, calibrate, compare models row by row with confidence intervals, fine-tune your own, and do all of it on whatever machine you have.
 
 It speaks Strands Decider natively, and it is open to **any decision model**: a checkpoint, any System One server, an Amazon Bedrock model such as Nova Pro, a Strands Agents model, an OpenAI-compatible endpoint, or a Python function.
+
+## 🖥️ Studio: the whole lab in your browser
+
+```bash
+pip install "decider-lab[ui] @ git+https://github.com/Vivek0712/decider-lab"
+decider-lab ui            # local web portal, token link printed in the terminal
+```
+
+<img src="docs/img/studio-leaderboard.png" alt="decider-lab Studio: a run root's leaderboard with 95% CI whiskers, raw vs calibrated toggle and the local-proxy notice" width="100%">
+
+Labs with a validating editor and a Run dialog for any backend (typed spend confirmation for paid ones), live jobs with a stage timeline, logs and GPU telemetry, results with forest plots, reliability diagrams and a row explorer across models, model pulls, data tools, and your vast.ai and AWS accounts (credit, quotas, instances, Bedrock models) in one place. Local only, token-protected, secrets never sent to the browser. → [docs/studio.md](docs/studio.md)
 
 ## ⚡ 60-second start
 
@@ -234,6 +246,7 @@ pip install "decider-lab[strands,heldout,aws,vast] @ git+https://github.com/Vive
 
 | extra | adds |
 |---|---|
+| `ui` | the Studio web portal (`decider-lab ui`) |
 | `strands` | Strands Decider (pinned GitHub main, with image input) to serve or fine-tune on this machine |
 | `heldout` | the `heldout` suite (public datasets, built locally at pinned revisions) |
 | `chess` | the chess family of the generated suites |
@@ -249,6 +262,7 @@ Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that ha
 | | |
 |---|---|
 | [Quickstart](docs/quickstart.md) | nothing → a report → a fine-tuned model |
+| [Studio](docs/studio.md) | the web portal: every page, safety rules, how it is tested |
 | [Concepts](docs/concepts.md) | rows, suites, adapters, runs, and exactly how every score is defined |
 | [Models](docs/models.md) | Hugging Face, S3, URLs, directories; pinning, checksums, caching |
 | [LLMs](docs/llms.md) | Amazon Bedrock (Nova), Strands Agents, OpenAI-compatible endpoints; AWS credentials |

@@ -1,7 +1,7 @@
 name: tests
 on: [push, pull_request]
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install -e ".[dev,aws,hub,ui]"
+      - run: pip install -e ".[dev,aws,hub,ui,strands-agents]"
       - run: ruff check src tests
       - run: pytest -q
   studio-e2e:
@@ -26,10 +26,19 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - run: python -m venv .venv && .venv/bin/pip install -e ".[dev,hub,ui]"
+      - run: pip install -e ".[dev,hub,ui]"
       - run: npm ci
         working-directory: ui
       - run: npx playwright install --with-deps chromium
         working-directory: ui
-      - run: npm run typecheck && npm run test:e2e
+      - run: npm run typecheck && npm run build
         working-directory: ui
+      - run: npx playwright test
+        working-directory: ui
+        env:
+          PYTHON: python
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: ui/test-results
