@@ -107,6 +107,36 @@ def package_root() -> str:
     return root
 
 
+def presign_sources(lab_path: str, log: Any = print) -> str | None:
+    """A copy of the lab with every s3:// model source replaced by a presigned https URL made
+    here, so the remote host can pull it without AWS credentials; None if there is none."""
+    import yaml
+
+    from ..sources import presign
+
+    with open(lab_path, encoding="utf-8") as fh:
+        lab = yaml.safe_load(fh) or {}
+    changed = 0
+    targets = [(m, "serve") for m in (lab.get("models") or {}).values() if isinstance(m, dict)]
+    targets += [(f, "from") for f in (lab.get("finetune") or {}).values() if isinstance(f, dict)]
+    for spec, key in targets:
+        src = spec.get(key)
+        if isinstance(src, str) and src.startswith("s3://"):
+            if not spec.get("sha256"):
+                log(f"[remote] WARNING: {src} has no sha256; the remote pull cannot be verified")
+            spec[key] = presign(src, spec)
+            for k in ("profile", "region"):
+                spec.pop(k, None)
+            changed += 1
+    if not changed:
+        return None
+    log(f"[remote] {changed} s3:// source(s) presigned for the remote host (valid 6 h; no credentials copied)")
+    out = os.path.join(os.path.dirname(lab_path), f".remote-{os.path.basename(lab_path)}")
+    with open(out, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(lab, fh, sort_keys=False)
+    return out
+
+
 def run_on(provider: Provider, lab_path: str, *, max_hours: float = 2.0, strands_spec: str | None = None,
            env: list[str] | None = None, keep: bool = False, run_args: str = "", fast_kernels: bool = False,
            log: Any = print) -> str:
@@ -139,7 +169,13 @@ def run_on(provider: Provider, lab_path: str, *, max_hours: float = 2.0, strands
         host.rsync(package_root() + "/", host.remote(f"{w}/decider-lab/"),
                    excludes=(".git", "runs", ".venv", "__pycache__", "*.egg-info", ".pytest_cache", ".ruff_cache"))
         host.rsync(lab_dir + "/", host.remote(f"{w}/lab/"),
-                   excludes=("runs", ".git", ".venv", "__pycache__", "gpu-run.log"))
+                   excludes=("runs", ".git", ".venv", "__pycache__", "gpu-run.log", ".remote-*"))
+        remote_lab = presign_sources(lab_path, log)
+        if remote_lab:
+            try:
+                host.rsync(remote_lab, host.remote(f"{w}/lab/{lab_file}"), delete=False)
+            finally:
+                os.remove(remote_lab)  # holds presigned URLs: never left on disk
         spec = strands_spec or provider.default_strands_spec()
         log(f"[{provider.name}] bootstrap: torch for this machine, {spec.split(' @ ')[0]}, decider-lab")
         host.ssh(f"WORK={w} {'FAST_KERNELS=1 ' if fast_kernels else ''}bash {w}/decider-lab/src/decider_lab/compute/"

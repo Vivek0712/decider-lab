@@ -32,7 +32,7 @@ from typing import Any
 
 import yaml
 
-from . import calibrate, jevbench, report, runner, serve
+from . import calibrate, jevbench, report, runner, serve, sources
 from .adapters import make_adapter
 from .suites import load_suite
 
@@ -54,6 +54,19 @@ def load_lab(path: str) -> dict[str, Any]:
     return lab
 
 
+def _log(msg: str) -> None:
+    print(msg, flush=True)
+
+
+def _local(spec: str, base_dir: str) -> str:
+    """A relative directory in a lab means relative to the lab file."""
+    if sources.kind_of(spec) == "local" and not os.path.isabs(os.path.expanduser(spec)):
+        candidate = os.path.join(base_dir, spec)
+        if os.path.exists(candidate):
+            return candidate
+    return spec
+
+
 @contextlib.contextmanager
 def answerer(name: str, spec: Any, lab: dict[str, Any], run_root: str) -> Iterator[Any]:
     """An adapter for a model spec, starting (and later stopping) a server when needed."""
@@ -64,12 +77,19 @@ def answerer(name: str, spec: Any, lab: dict[str, Any], run_root: str) -> Iterat
 
             ckpt = run_finetune(spec["finetuned"], lab["finetune"][spec["finetuned"]],
                                 os.path.join(run_root, "_finetune"))
-            spec = {**spec, "serve": ckpt}
-        with serve.served(spec["serve"], vision=bool(spec.get("vision")), device=spec.get("device"),
-                          model_name=spec.get("model_name"), gpu=spec.get("gpu"),
+            path, source = ckpt, {"source": f"finetune.{spec['finetuned']}", "kind": "finetuned", "path": ckpt}
+        else:
+            # hf://, s3://, https:// or a directory: pulled once, verified, cached, recorded
+            path, source = sources.resolve(_local(spec["serve"], base_dir), spec, log=_log)
+        with open(os.path.join(run_root, name, "source.json"), "w", encoding="utf-8") as fh:
+            json.dump(source, fh, indent=2)
+        with serve.served(path, vision=bool(spec.get("vision")), device=spec.get("device"),
+                          model_name=spec.get("model_name") or name, gpu=spec.get("gpu"),
                           log_path=os.path.join(run_root, name, "server.log"),
                           timeout=float(spec.get("health_timeout", 1800))) as (url, _health):
-            yield make_adapter({"url": url, "timeout": spec.get("timeout", 300)}, base_dir=base_dir)
+            adapter = make_adapter({"url": url, "timeout": spec.get("timeout", 300)}, base_dir=base_dir)
+            adapter.source = source
+            yield adapter
         return
     yield make_adapter(spec, base_dir=base_dir)
 

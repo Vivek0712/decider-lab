@@ -8,6 +8,7 @@
     decider-lab eval --model URL --suite smoke          one model, one suite, no lab file
     decider-lab compare RUN_A RUN_B                     paired difference with a 95% CI
     decider-lab calibrate RUN                           per-kind temperature (dev) -> RUN+cal (test)
+    decider-lab pull hf://org/repo@commit | s3://... | https://...   fetch, verify and cache a model
     decider-lab data ...                                from-csv, generate, check, split, leakcheck, stats
     decider-lab suites                                  the built-in suites
     decider-lab jevbench --url URL --out DIR            JevBench public tasks, v1.5-rule proxy
@@ -208,6 +209,27 @@ def cmd_data(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pull(a: argparse.Namespace) -> int:
+    from . import sources
+
+    opts = {k: v for k, v in (("sha256", a.sha256), ("revision", a.revision), ("profile", a.profile),
+                              ("region", a.region), ("require_pinned", a.require_pinned or None)) if v}
+    path, info = sources.resolve(a.source, opts, log=lambda m: print(m, flush=True))
+    _print({"path": path, **info})
+    return 0
+
+
+def cmd_models(a: argparse.Namespace) -> int:
+    from . import sources
+
+    rows = sources.cached()
+    for r in rows:
+        ref = r.get("resolved_commit") or r.get("sha256") or r.get("etags_sha256") or ""
+        print(f"{r['size_gb']:>7.2f} GB  {r['kind']:<4} {r['source']}  {ref[:16]}")
+    print(f"{len(rows)} cached model(s) in {sources._models_dir()} (Hugging Face snapshots live in the HF cache)")
+    return 0
+
+
 def cmd_jevbench(a: argparse.Namespace) -> int:
     from . import jevbench
 
@@ -359,6 +381,18 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--against", nargs="+", required=True, help="suites or files")
     d.add_argument("--drop-to", help="write the training rows without the overlapping ones here")
     s.set_defaults(fn=cmd_data)
+
+    s = sub.add_parser("pull", help="fetch a model now: hf://org/repo@commit, s3://..., https://..., or a directory")
+    s.add_argument("source")
+    s.add_argument("--sha256", help="required checksum of an archive or file")
+    s.add_argument("--revision", help="hf:// commit, branch or tag (or use @ in the source)")
+    s.add_argument("--require-pinned", action="store_true", help="refuse an hf:// source without a full commit")
+    s.add_argument("--profile", help="s3:// AWS profile")
+    s.add_argument("--region", help="s3:// AWS region")
+    s.set_defaults(fn=cmd_pull)
+
+    s = sub.add_parser("models", help="models pulled into the decider-lab cache")
+    s.set_defaults(fn=cmd_models)
 
     s = sub.add_parser("jevbench", help="JevBench public tasks against a System One URL (v1.5-rule proxy)")
     s.add_argument("--url", required=True)

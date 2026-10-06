@@ -14,6 +14,7 @@
   <a href="#-60-second-start">Start</a> ·
   <a href="#-how-it-works">How it works</a> ·
   <a href="#%EF%B8%8F-run-anywhere">Run anywhere</a> ·
+  <a href="#-models-from-anywhere">Models</a> ·
   <a href="#-fine-tune-your-own-decider">Fine-tune</a> ·
   <a href="#-recipes">Recipes</a> ·
   <a href="#-real-results">Results</a> ·
@@ -70,6 +71,7 @@ jevbench: [v19]                    # JevBench's 231 public tasks, v1.5 rules
 | 🎯 **make probabilities honest** | per-kind temperature fitted on `dev`, scored on `test`, for any model's outputs |
 | 🛠️ **fine-tune your own decider** | data from a CSV or generators, a leak check, Strands Decider's own trainer, calibration, then the same evaluation |
 | ☁️ **use a machine you don't have** | `--on ssh`, `--on aws`, `--on vast`, with the machine released even when the run fails |
+| 📥 **use any checkpoint** | Hugging Face (pinned), S3, a URL or a folder, checksummed, cached and recorded |
 | 📦 **publish an evaluation** | a suite is a JSONL file; its fingerprint is recorded in every run, so others can prove they scored the same rows |
 
 ## ☁️ Run anywhere
@@ -84,6 +86,18 @@ decider-lab run lab.yaml --on vast --gpu A100_SXM4              # a rented GPU
 ```
 
 Every remote run checks first (credit, AWS vCPU quota with the exact quota code to request, ssh reachability), installs torch built for that machine's NVIDIA driver (or CPU), streams the log back, copies `runs/` home, and **releases the machine on success, failure, deadline or Ctrl-C**. AWS instances also self-terminate at the deadline, so a dead laptop never leaves one running. → [docs/compute.md](docs/compute.md)
+
+## 📥 Models from anywhere
+
+```yaml
+models:
+  v19:  {serve: "hf://StrandsAgents/strands-decider-2B-hobson-v19@bb282d786bc251fd4e3068de3ada9ddbb38127cd"}
+  mine: {serve: "s3://my-bucket/weights/mine.tar", sha256: 6346192d..., profile: research}
+  v22:  {serve: "https://example.com/weights/v22.tar", sha256: 7305d520...}
+  dev:  {serve: checkpoints/run-8}
+```
+
+Hugging Face (pinned commit recorded, gated repos via `HF_TOKEN`), S3 objects or prefixes, any URL, or a directory: pulled once, checked against `sha256`, extracted safely, cached, and recorded in every `run.json`. On remote backends, `s3://` sources become presigned links made on your machine, so no AWS credentials leave it. `decider-lab pull <source>` warms the cache; `decider-lab models` lists it. → [docs/models.md](docs/models.md)
 
 ## 🧪 Fine-tune your own decider
 
@@ -220,7 +234,8 @@ pip install "decider-lab[strands,heldout,aws,vast] @ git+https://github.com/Vive
 | `strands` | Strands Decider (pinned GitHub main, with image input) to serve or fine-tune on this machine |
 | `heldout` | the `heldout` suite (public datasets, built locally at pinned revisions) |
 | `chess` | the chess family of the generated suites |
-| `aws` / `vast` | the `--on aws` / `--on vast` backends |
+| `hub` | `hf://` model sources (included in `strands` and `heldout`) |
+| `aws` / `vast` | the `--on aws` / `--on vast` backends, and `s3://` model sources (`aws`) |
 
 Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that has it ([strands-decider#29](https://github.com/strands-labs/strands-decider/pull/29)); otherwise decider-lab falls back to `init_from` and tells you.
 
@@ -230,6 +245,7 @@ Python 3.10+. Full fine-tuning (`continue_from`) needs a strands-decider that ha
 |---|---|
 | [Quickstart](docs/quickstart.md) | nothing → a report → a fine-tuned model |
 | [Concepts](docs/concepts.md) | rows, suites, adapters, runs, and exactly how every score is defined |
+| [Models](docs/models.md) | Hugging Face, S3, URLs, directories; pinning, checksums, caching |
 | [Fine-tuning](docs/finetune.md) | data, leak checks, the recipe, continue vs init |
 | [Compute](docs/compute.md) | local, ssh, AWS and vast.ai; the traps the bootstrap handles |
 | [Extending](docs/extending.md) | your own adapter or suite; publishing an evaluation |

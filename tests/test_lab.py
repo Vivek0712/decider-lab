@@ -65,7 +65,8 @@ def test_finetune_prefers_continue_from(tmp_path):
     (tmp_path / "train.jsonl").write_text(json.dumps({"kind": "noul", "state": "x", "instructions": "q",
                                                       "options": [["false", "no"], ["true", "yes"]], "label": 1}) + "\n")
     spec = {"from": "org/ckpt", "train": str(tmp_path / "train.jsonl"), "steps": 10}
-    path, ckpt, notes = finetune.make_config("m", spec, str(tmp_path / "w"), fields=FIELDS | {"continue_from"})
+    path, ckpt, notes = finetune.make_config("m", spec, str(tmp_path / "w"), fields=FIELDS | {"continue_from"},
+                                                resolve_sources=False)
     cfg = yaml.safe_load(open(path))
     assert cfg["continue_from"] == "org/ckpt" and "init_from" not in cfg and cfg["max_steps"] == 10
     assert cfg["head_type"] == "pointer"
@@ -75,7 +76,7 @@ def test_finetune_falls_back_to_init_from_and_says_so(tmp_path):
     (tmp_path / "train.jsonl").write_text(json.dumps({"kind": "noul", "state": "x", "instructions": "q",
                                                       "options": [["false", "no"], ["true", "yes"]], "label": 1}) + "\n")
     spec = {"from": "org/ckpt", "train": str(tmp_path / "train.jsonl")}
-    path, _, notes = finetune.make_config("m", spec, str(tmp_path / "w"), fields=FIELDS)
+    path, _, notes = finetune.make_config("m", spec, str(tmp_path / "w"), fields=FIELDS, resolve_sources=False)
     cfg = yaml.safe_load(open(path))
     assert cfg["init_from"] == "org/ckpt" and cfg["head_type"] == "slot"
     assert any("FROZEN" in n for n in notes)

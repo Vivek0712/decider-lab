@@ -10,7 +10,7 @@ workers: 8
 
 finetune:
   mine:
-    from: StrandsAgents/strands-decider-2B-hobson-v19
+    from: hf://StrandsAgents/strands-decider-2B-hobson-v19@bb282d786bc251fd4e3068de3ada9ddbb38127cd
     train: data/train.jsonl
     steps: 150            # a short run; remove for one full epoch
     micro_batch_size: 8
@@ -19,7 +19,7 @@ finetune:
 
 models:
   v19:
-    serve: StrandsAgents/strands-decider-2B-hobson-v19
+    serve: hf://StrandsAgents/strands-decider-2B-hobson-v19@bb282d786bc251fd4e3068de3ada9ddbb38127cd
   # `mine` is added automatically: trained first, then served from its checkpoint
   majority: {baseline: majority}
 

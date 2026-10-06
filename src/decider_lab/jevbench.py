@@ -15,7 +15,7 @@ import subprocess
 import sys
 from typing import Any
 
-from .suites import CACHE
+from . import suites
 
 REPO = "https://github.com/fstandhartinger/jevbench"
 COMMIT = "1bcc55eb6c8cffde2306b3db03ede39b61c6152a"
@@ -23,7 +23,7 @@ BAND = (0.2, 0.8)
 
 
 def ensure_harness(python: str = sys.executable) -> str:
-    path = os.path.join(CACHE, "jevbench")
+    path = os.path.join(suites.CACHE, "jevbench")
     if not os.path.isdir(os.path.join(path, ".git")):
         subprocess.run(["git", "clone", "-q", REPO, path], check=True)
     if subprocess.run(["git", "-C", path, "cat-file", "-e", f"{COMMIT}^{{commit}}"], capture_output=True).returncode:

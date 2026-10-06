@@ -121,7 +121,7 @@ def run(adapter: Adapter, rows: list[Row], out: str, *, suite: str = "suite", su
     scores["scored_split"] = score_split or "all"
     meta = {"model": model, "suite": suite, "suite_params": suite_params or {}, "suite_sha256": rows_sha256(rows),
             "n_rows": len(rows), "answered_this_call": len(new), "wall_s": round(wall, 2),
-            "answerer": adapter.describe(), "decider_lab": __version__, "host": socket.gethostname(),
+            "answerer": {**adapter.describe(), **({"source": adapter.source} if getattr(adapter, "source", None) else {})}, "decider_lab": __version__, "host": socket.gethostname(),
             "platform": platform.platform(), "python": platform.python_version(), "gpu": gpu_name(),
             "finished_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     with open(os.path.join(out, "run.json"), "w", encoding="utf-8") as fh:

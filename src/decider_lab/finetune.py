@@ -64,7 +64,8 @@ def train_fields(python: str | None = None) -> set[str]:
     return set(json.loads(out.stdout.strip().splitlines()[-1]))
 
 
-def make_config(name: str, spec: dict[str, Any], workdir: str, *, fields: set[str] | None = None) -> tuple[str, str, list[str]]:
+def make_config(name: str, spec: dict[str, Any], workdir: str, *, fields: set[str] | None = None,
+                resolve_sources: bool = True) -> tuple[str, str, list[str]]:
     """Write `<workdir>/<name>/train.yaml`; returns (config path, checkpoint dir, notes)."""
     notes: list[str] = []
     out_dir = os.path.join(workdir, name)
@@ -85,6 +86,12 @@ def make_config(name: str, spec: dict[str, Any], workdir: str, *, fields: set[st
         notes.append(f"{f}: {len(rows)} rows")
     cfg: dict[str, Any] = dict(RECIPE)
     start = spec.get("from")
+    if start and resolve_sources:
+        from .sources import resolve
+
+        # hf://...@commit, s3://, https:// or a directory -> a local checkpoint, recorded
+        start, source = resolve(start, spec, log=lambda m: print(m, flush=True))
+        notes.append(f"from {source.get('source')} ({source.get('resolved_commit') or source.get('sha256') or 'local'})")
     fields = fields if fields is not None else train_fields()
     if start:
         if "continue_from" in fields and spec.get("mode", "continue") == "continue":
